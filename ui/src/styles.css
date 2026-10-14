@@ -82,9 +82,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .collection-input { width: 100%; min-width: 0; height: 33px; border-color: var(--color-base-300); background: var(--color-base-100); font-size: 10px; }
 .collection-add { min-height: 33px; height: 33px; width: 34px; padding: 0; font-size: 20px; font-weight: 400; }
 .sidebar-spacer { flex: 1; min-height: 20px; }
-.vault-note { display: flex; align-items: flex-start; gap: 9px; margin: 0 8px 14px; }
-.vault-rule { flex: 0 0 18px; height: 1px; margin-top: 8px; background: var(--color-primary); }
-.vault-note p { margin: 0; color: color-mix(in oklch, var(--color-base-content), transparent 42%); font-family: Georgia, serif; font-size: 10px; line-height: 1.55; }
+
 .scan-button { min-height: 40px; height: 40px; justify-content: flex-start; padding-inline: 12px; font-size: 11px; font-weight: 600; }
 
 .main-panel { display: grid; min-width: 0; min-height: 0; grid-template-rows: 54px minmax(0, 1fr) 24px; overflow: hidden; }
@@ -125,12 +123,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .font-row { display: grid; width: 100%; min-height: 102px; grid-template-columns: 38px minmax(0, 1fr) 92px; gap: 10px; align-items: center; padding: 14px 11px 12px 2px; border: 0; border-bottom: 1px solid var(--color-base-300); background: transparent; text-align: left; cursor: pointer; transition: background-color 140ms ease; }
 .font-row:hover { background: color-mix(in oklch, var(--color-base-200), transparent 42%); }
 .font-row.is-selected { background: color-mix(in oklch, var(--color-base-200), transparent 12%); }
-.font-row-number, .google-index { align-self: start; padding-top: 5px; color: color-mix(in oklch, var(--color-base-content), transparent 58%); font-size: 9px; font-variant-numeric: tabular-nums; }
+.font-row-number { align-self: start; padding-top: 5px; color: color-mix(in oklch, var(--color-base-content), transparent 58%); font-size: 9px; font-variant-numeric: tabular-nums; }
 .font-row-main { display: grid; min-width: 0; gap: 3px; }
 .font-row-family { overflow: hidden; font-family: Georgia, "Times New Roman", serif; font-size: 17px; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
 .font-row-meta { color: color-mix(in oklch, var(--color-base-content), transparent 43%); font-size: 9px; }
 .font-row-meta i, .font-subtitle i { padding-inline: 3px; color: var(--color-primary); font-style: normal; }
-.font-row-sample { display: block; max-width: 100%; margin-top: 4px; overflow: hidden; color: color-mix(in oklch, var(--color-base-content), transparent 13%); line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.font-row-sample { display: block; max-width: 100%; margin-top: 4px; overflow: hidden; color: color-mix(in oklch, var(--color-base-content), transparent 13%); font-family: Georgia, serif; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
 .font-row-state { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .font-row-state .badge { font-size: 8px; }
 .favorite-mark { color: var(--color-primary); font-size: 16px; }
@@ -176,28 +174,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .google-actions { margin-top: 16px; }
 .google-hero { min-height: 205px; }
 
-.google-view { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--color-base-300) transparent; }
+.google-view { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
 .catalog-stale { margin: 0 0 10px; padding: 9px 11px; border: 1px solid color-mix(in oklch, var(--color-warning), transparent 58%); border-radius: var(--radius-field); color: color-mix(in oklch, var(--color-base-content), transparent 22%); font-size: 9px; }
-.google-row { display: flex; min-height: 77px; align-items: center; gap: 8px; padding: 8px 8px 8px 3px; border-bottom: 1px solid var(--color-base-300); transition: background-color 140ms ease; }
-.google-row:hover, .google-row.is-selected { background: color-mix(in oklch, var(--color-base-200), transparent 34%); }
-.google-family-select { display: grid; flex: 1; min-width: 0; grid-template-columns: 34px minmax(0, 1fr) 50px; gap: 8px; align-items: center; border: 0; background: transparent; text-align: left; cursor: pointer; }
-.google-index { align-self: center; padding: 0; }
-.google-family-copy { display: grid; gap: 4px; min-width: 0; }
-.google-family-name { overflow: hidden; font-family: Georgia, serif; font-size: 16px; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
-.google-meta { color: color-mix(in oklch, var(--color-base-content), transparent 46%); font-size: 8px; text-transform: capitalize; }
-.google-meta i { padding-inline: 3px; color: var(--color-primary); font-style: normal; }
-.google-sample { color: color-mix(in oklch, var(--color-base-content), transparent 20%); font-family: Georgia, serif; font-size: 25px; text-align: right; }
+.google-catalog-spacer { position: relative; min-height: 100%; }
+.google-font-row { position: absolute; inset-inline: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; overflow: hidden; border-bottom: 1px solid var(--color-base-300); }
+.google-font-row .font-row { height: 107px; min-height: 107px; border-bottom: 0; }
+.google-font-row .family-download { margin-right: 3px; }
 .family-download { min-height: 28px; height: 28px; padding-inline: 7px; color: color-mix(in oklch, var(--color-base-content), transparent 26%); font-size: 8px; white-space: nowrap; }
 .family-confirm { display: flex; align-items: center; gap: 7px; margin: 13px 0; padding: 12px; border: 1px solid var(--color-base-300); border-radius: var(--radius-box); background: var(--color-base-200); }
 .family-confirm > div { flex: 1; min-width: 0; }
 .family-confirm strong { font-family: Georgia, serif; font-size: 12px; font-weight: 400; }
 .family-confirm p { margin: 4px 0 0; color: color-mix(in oklch, var(--color-base-content), transparent 43%); font-size: 9px; }
 .family-confirm .btn { min-height: 28px; height: 28px; padding-inline: 8px; font-size: 9px; }
-.downloaded-section { margin-top: 26px; }
-.downloaded-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding-top: 9px; }
-.downloaded-item { display: grid; min-width: 0; gap: 4px; padding: 9px; border: 1px solid var(--color-base-300); border-radius: var(--radius-field); background: var(--color-base-100); text-align: left; cursor: pointer; }
-.downloaded-item span { overflow: hidden; font-family: Georgia, serif; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.downloaded-item small { color: color-mix(in oklch, var(--color-base-content), transparent 44%); font-size: 8px; }
+
 
 .statusbar { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 18px; border-top: 1px solid var(--color-base-300); color: color-mix(in oklch, var(--color-base-content), transparent 56%); font-size: 8px; }
 .statusbar span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -206,6 +195,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .toast-note button { border: 0; background: transparent; color: color-mix(in oklch, var(--color-base-content), transparent 45%); font-size: 18px; cursor: pointer; }
 .toast-error { border-color: color-mix(in oklch, var(--color-error), transparent 55%); }
 .toast-success { border-color: color-mix(in oklch, var(--color-success), transparent 55%); }
+.drop-target { position: fixed; inset: 14px; z-index: 20; display: grid; place-items: center; border: 2px dashed var(--color-primary); border-radius: var(--radius-box); background: color-mix(in oklch, var(--color-base-100), transparent 8%); color: var(--color-base-content); font-family: Georgia, serif; font-size: clamp(18px, 2vw, 26px); text-align: center; pointer-events: none; }
 .app-loading { display: grid; width: 100%; height: 100vh; align-content: center; justify-items: center; gap: 12px; color: color-mix(in oklch, var(--color-base-content), transparent 40%); font-family: Georgia, serif; font-size: 17px; }
 .app-loading p { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

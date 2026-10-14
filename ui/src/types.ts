@@ -21,6 +21,7 @@ export interface FontItem {
   sourceVariantId: string | null;
   category: FontCategory;
   isActive: boolean;
+  isInstalled: boolean;
   isFavorite: boolean;
   fileSize: number;
   fileModifiedUnixMs: number;

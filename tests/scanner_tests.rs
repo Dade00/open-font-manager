@@ -39,6 +39,24 @@ fn supported_extensions_are_case_insensitive_and_reject_web_fonts() {
 }
 
 #[test]
+fn scanner_ignores_open_font_manager_managed_install_copies() {
+    let Some(source) = installed_font() else {
+        return;
+    };
+    let dir = tempdir().expect("temporary directory");
+    fs::copy(&source, dir.path().join("OFM_0123456789abcdef.ttf"))
+        .expect("copy managed install font");
+    let service = LocalLibraryService::new(dir.path().join("library.sqlite3"));
+
+    let report = service
+        .scan_directory(dir.path())
+        .expect("scan managed font");
+
+    assert_eq!(report.discovered_candidates, 0);
+    assert_eq!(report.imported, 0);
+}
+
+#[test]
 fn scanner_imports_every_face_from_a_system_font_collection() {
     let root = std::env::var_os("WINDIR")
         .map(PathBuf::from)

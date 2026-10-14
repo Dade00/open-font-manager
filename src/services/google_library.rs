@@ -224,6 +224,7 @@ impl GoogleLibraryService {
             source_variant_id: Some(variant.id.clone()),
             category: normalize_category(&details.category),
             is_active: false,
+            is_installed: false,
             is_favorite: false,
             file_size: file_metadata.len(),
             file_modified_unix_ms,

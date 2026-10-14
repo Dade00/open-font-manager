@@ -29,6 +29,7 @@ pub fn run() {
             commands::get_font_preview_bytes,
             commands::get_font_snippet,
             commands::scan_directory,
+            commands::import_zip_font,
             commands::load_cached_google_catalog,
             commands::refresh_google_catalog,
             commands::preview_google_variant,

@@ -19,6 +19,7 @@ fn item(source: FontSource, family: &str) -> FontItem {
         source_variant_id: None,
         category: FontCategory::Unknown,
         is_active: false,
+        is_installed: false,
         is_favorite: false,
         file_size: 100,
         file_modified_unix_ms: 0,

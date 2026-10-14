@@ -97,16 +97,9 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
     let c = open_connection(path)?;
     let (mut conditions, mut args) = (vec!["1=1".to_string()], Vec::<Value>::new());
     match q.tab {
-        LibraryTab::Local | LibraryTab::Google => {
-            conditions.push("f.source=?".into());
-            args.push(Value::Text(
-                if q.tab == LibraryTab::Local {
-                    "local"
-                } else {
-                    "google"
-                }
-                .into(),
-            ));
+        LibraryTab::Local => {}
+        LibraryTab::Google => {
+            conditions.push("f.source='google'".into());
         }
         LibraryTab::Active => conditions.push("f.is_active=1".into()),
         LibraryTab::Favorites => conditions.push("f.is_favorite=1".into()),
@@ -362,6 +355,7 @@ fn row_font(r: &rusqlite::Row<'_>) -> rusqlite::Result<FontItem> {
         source_variant_id: r.get(9)?,
         category: parse_cat(&cat),
         is_active: r.get(11)?,
+        is_installed: r.get(11)?,
         is_favorite: r.get(12)?,
         file_size: u64::try_from(size).unwrap_or(0),
         file_modified_unix_ms: r.get(14)?,

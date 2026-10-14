@@ -29,6 +29,7 @@ fn font(id: &str, family: &str, path: &Path) -> FontItem {
         source_variant_id: None,
         category: FontCategory::Unknown,
         is_active: false,
+        is_installed: false,
         is_favorite: false,
         file_size: 1024,
         file_modified_unix_ms: 100,
@@ -45,6 +46,37 @@ fn query(tab: LibraryTab, search: &str, page: u32, page_size: u32) -> FontQuery 
         page,
         page_size,
     }
+}
+
+#[test]
+fn local_library_includes_installed_google_fonts_without_changing_google_filter() {
+    let (_dir, path) = temp_db();
+    db::migrate(&path).expect("migrate");
+    let local = font(
+        "local-font",
+        "Local Family",
+        Path::new("C:/fonts/local.ttf"),
+    );
+    let mut google = font(
+        "google-font",
+        "Google Family",
+        Path::new("C:/vault/google.ttf"),
+    );
+    google.source = FontSource::Google;
+    google.source_family_id = Some("google-family".into());
+    google.source_variant_id = Some("regular".into());
+    db::upsert_font(&path, &local).expect("insert local font");
+    db::upsert_font(&path, &google).expect("insert installed Google font");
+
+    let local_page =
+        db::list_fonts(&path, query(LibraryTab::Local, "", 0, 50)).expect("list local library");
+    assert_eq!(local_page.total, 2);
+    assert!(local_page.items.iter().any(|item| item.id == "google-font"));
+
+    let google_page =
+        db::list_fonts(&path, query(LibraryTab::Google, "", 0, 50)).expect("list Google source");
+    assert_eq!(google_page.total, 1);
+    assert_eq!(google_page.items[0].id, "google-font");
 }
 
 #[test]

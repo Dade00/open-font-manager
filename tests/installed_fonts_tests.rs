@@ -1,7 +1,8 @@
 use std::{fs, path::PathBuf};
 
 use rust_font_manager::{
-    installed_fonts::font_roots_from, services::local_library::LocalLibraryService,
+    installed_fonts::{font_roots_from, is_installed_font_path},
+    services::local_library::LocalLibraryService,
 };
 use tempfile::tempdir;
 
@@ -24,6 +25,24 @@ fn installed_roots_include_system_and_per_user_font_directories() {
             user_fonts.canonicalize().expect("canonical user root"),
         ]
     );
+}
+
+#[test]
+fn installed_font_path_is_recognized_only_inside_a_windows_font_root() {
+    let dir = tempdir().expect("temporary directory");
+    let root = dir.path().join("Windows/Fonts");
+    let nested = root.join("Managed/Example.ttf");
+    let outside = dir.path().join("Downloads/Example.ttf");
+    fs::create_dir_all(nested.parent().unwrap()).expect("nested font directory");
+    fs::create_dir_all(outside.parent().unwrap()).expect("outside directory");
+    fs::write(&nested, b"font").expect("installed font");
+    fs::write(&outside, b"font").expect("uninstalled font");
+
+    assert!(is_installed_font_path(&nested, std::slice::from_ref(&root)));
+    assert!(!is_installed_font_path(
+        &outside,
+        std::slice::from_ref(&root)
+    ));
 }
 
 #[test]

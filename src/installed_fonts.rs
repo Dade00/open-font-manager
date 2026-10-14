@@ -1,5 +1,5 @@
 use std::{
-    env,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -31,4 +31,25 @@ pub fn font_roots_from(windows_dir: Option<&Path>, local_app_data: Option<&Path>
         }
     }
     roots
+}
+
+/// Returns whether `font_path` is physically located in one of Windows' font roots.
+pub fn is_installed_font_path(font_path: &Path, roots: &[PathBuf]) -> bool {
+    if !font_path.is_file() {
+        return false;
+    }
+    let font_path = fs::canonicalize(font_path).unwrap_or_else(|_| font_path.to_path_buf());
+    let font_path = normalized_path(&font_path);
+    roots.iter().any(|root| {
+        let root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+        let root = normalized_path(&root);
+        font_path == root || font_path.starts_with(&format!("{root}/"))
+    })
+}
+
+fn normalized_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .trim_end_matches('/')
+        .to_lowercase()
 }

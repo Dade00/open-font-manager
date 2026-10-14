@@ -33,6 +33,7 @@ export interface FontManagerApi {
   getFontPreviewBytes(fontId: string): Promise<Uint8Array>;
   getFontSnippet(fontId: string, kind: 'css' | 'nextjs'): Promise<string>;
   scanDirectory(path: string): Promise<ScanReport>;
+  importZipFont(path: string): Promise<ScanReport>;
   refreshGoogleCatalog(): Promise<CatalogSnapshot>;
   previewGoogleVariant(familyId: string, variantId: string): Promise<GooglePreview>;
   installGoogleVariant(familyId: string, variantId: string): Promise<FontItem>;
@@ -63,6 +64,7 @@ export const fontManagerApi: FontManagerApi = {
   getFontPreviewBytes: invokePreview,
   getFontSnippet: (fontId, kind) => invoke('get_font_snippet', { fontId, kind }),
   scanDirectory: (path) => invoke('scan_directory', { path }),
+  importZipFont: (path) => invoke('import_zip_font', { path }),
   refreshGoogleCatalog: () => invoke('refresh_google_catalog'),
   previewGoogleVariant: (familyId, variantId) =>
     invoke('preview_google_variant', { familyId, variantId }),

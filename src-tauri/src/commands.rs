@@ -131,6 +131,15 @@ pub async fn scan_directory(
 }
 
 #[tauri::command]
+pub async fn import_zip_font(
+    state: State<'_, Arc<AppBackend>>,
+    path: String,
+) -> Result<rust_font_manager::models::ScanReport, String> {
+    let backend = Arc::clone(state.inner());
+    blocking(move || backend.import_zip_font(&PathBuf::from(path))).await
+}
+
+#[tauri::command]
 pub async fn load_cached_google_catalog(
     state: State<'_, Arc<AppBackend>>,
 ) -> Result<Option<CatalogSnapshot>, String> {

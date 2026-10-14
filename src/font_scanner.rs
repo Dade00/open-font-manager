@@ -104,6 +104,23 @@ pub fn is_supported_font_path(path: &Path) -> bool {
         })
 }
 
+fn is_open_font_manager_install_copy(path: &Path) -> bool {
+    let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    let Some(file_name) = file_name.strip_prefix("OFM_") else {
+        return false;
+    };
+    let Some((id_hash, extension)) = file_name.rsplit_once('.') else {
+        return false;
+    };
+    id_hash.len() == 16
+        && id_hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && ["ttf", "otf", "ttc"]
+            .iter()
+            .any(|supported| extension.eq_ignore_ascii_case(supported))
+}
+
 /// Creates a stable SHA-256 identity from a canonical path and an optional variant ID.
 pub fn font_id(canonical_path: &Path, variant_id: Option<&str>) -> Result<String, AppError> {
     let canonical = fs::canonicalize(canonical_path).map_err(|error| AppError::Storage {
@@ -164,6 +181,9 @@ pub(crate) fn scan_directory_with_items(root: &Path) -> Result<ScanOutcome, AppE
             continue;
         }
         let path = entry.path();
+        if is_open_font_manager_install_copy(path) {
+            continue;
+        }
         if !is_supported_font_path(path) {
             report.skipped_unsupported += 1;
             continue;
@@ -223,6 +243,7 @@ pub(crate) fn scan_directory_with_items(root: &Path) -> Result<ScanOutcome, AppE
                         source_variant_id: variant_id,
                         category: FontCategory::Unknown,
                         is_active: false,
+                        is_installed: false,
                         is_favorite: false,
                         file_size: metadata.file_size,
                         file_modified_unix_ms: metadata.file_modified_unix_ms,

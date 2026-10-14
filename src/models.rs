@@ -102,6 +102,7 @@ pub struct FontItem {
     pub source_variant_id: Option<String>,
     pub category: FontCategory,
     pub is_active: bool,
+    pub is_installed: bool,
     pub is_favorite: bool,
     pub file_size: u64,
     pub file_modified_unix_ms: i64,
