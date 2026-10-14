@@ -1,20 +1,13 @@
-use iced::widget::{column, text};
-use iced::{Element, Task};
-
-#[derive(Debug, Default)]
-struct StartupState;
-
-#[derive(Debug, Clone)]
-enum StartupMessage {}
-
-fn update(_state: &mut StartupState, message: StartupMessage) -> Task<StartupMessage> {
-    match message {}
-}
-
-fn view(_state: &StartupState) -> Element<'_, StartupMessage> {
-    column![text("RustFontManager")].into()
-}
+use rust_font_manager::app::FontApp;
 
 fn main() -> iced::Result {
-    iced::application("RustFontManager", update, view).run()
+    iced::application("RustFontManager", FontApp::update, FontApp::view)
+        .theme(FontApp::theme)
+        .window(iced::window::Settings {
+            size: iced::Size::new(1280.0, 800.0),
+            min_size: Some(iced::Size::new(1000.0, 680.0)),
+            position: iced::window::Position::Centered,
+            ..Default::default()
+        })
+        .run_with(FontApp::new)
 }

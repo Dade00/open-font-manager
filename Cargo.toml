@@ -3,9 +3,11 @@ name = "rust-font-manager"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
+description = "Gestore desktop nativo di font per Windows 11 con attivazione GDI temporanea"
+repository = "https://github.com/Dade00/rust-font-manager"
 
 [dependencies]
-iced = { version = "0.13.1", features = ["tokio", "advanced", "lazy", "image"] }
+iced = { version = "0.13.1", default-features = false, features = ["tiny-skia", "tokio", "advanced", "lazy"] }
 tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "fs", "sync", "time"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 futures = "0.3"
@@ -21,6 +23,8 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 skrifa = "0.30"
+read-fonts = "0.28"
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
@@ -28,6 +32,3 @@ windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
 ] }
-
-[dev-dependencies]
-tempfile = "3"

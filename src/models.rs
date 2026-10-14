@@ -26,6 +26,51 @@ pub enum FontCategory {
     Monospace,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoogleFontCatalogItem {
+    pub id: String,
+    pub family: String,
+    #[serde(default)]
+    pub subsets: Vec<String>,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default, rename = "defVariant")]
+    pub default_variant: String,
+    #[serde(default, rename = "defSubset")]
+    pub default_subset: String,
+    #[serde(default)]
+    pub variants: Vec<String>,
+    #[serde(default)]
+    pub popularity: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoogleFontVariant {
+    pub id: String,
+    #[serde(default, rename = "fontWeight")]
+    pub font_weight: String,
+    #[serde(default, rename = "fontStyle")]
+    pub font_style: String,
+    #[serde(default)]
+    pub ttf: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoogleFontDetails {
+    pub id: String,
+    pub family: String,
+    #[serde(default)]
+    pub subsets: Vec<String>,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default, rename = "defVariant")]
+    pub default_variant: String,
+    #[serde(default, rename = "defSubset")]
+    pub default_subset: String,
+    #[serde(default)]
+    pub variants: Vec<GoogleFontVariant>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LibraryTab {
     #[default]

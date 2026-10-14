@@ -129,24 +129,42 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
     })
 }
 pub fn list_active_fonts(path: &Path) -> Result<Vec<FontItem>, AppError> {
-    let p = list_fonts(
-        path,
-        FontQuery {
-            tab: LibraryTab::Active,
-            search: String::new(),
-            category: FontCategory::All,
-            collection_id: None,
-            page: 0,
-            page_size: 100,
-        },
-    )?;
-    if p.total > p.items.len() {
-        return Err(AppError::InvalidInput(
-            "Active font count exceeds supported page size.".into(),
-        ));
+    let mut page = 0;
+    let mut active = Vec::new();
+    loop {
+        let result = list_fonts(
+            path,
+            FontQuery {
+                tab: LibraryTab::Active,
+                search: String::new(),
+                category: FontCategory::All,
+                collection_id: None,
+                page,
+                page_size: 100,
+            },
+        )?;
+        active.extend(result.items);
+        if active.len() >= result.total {
+            return Ok(active);
+        }
+        page += 1;
     }
-    Ok(p.items)
 }
+
+pub fn count_active_fonts(path: &Path) -> Result<usize, AppError> {
+    let connection = open_connection(path)?;
+    let mut statement = connection
+        .prepare("SELECT file_path FROM fonts WHERE is_active=1 AND missing_on_disk=0")?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+    let mut count = 0;
+    for row in rows {
+        if Path::new(&row?).is_file() {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
 pub fn set_font_active(p: &Path, id: &str, v: bool) -> Result<(), AppError> {
     update_flag(p, id, "is_active", v)
 }
@@ -174,9 +192,7 @@ pub fn mark_root_missing_files(p: &Path, root: &Path, present: &[PathBuf]) -> Re
     for row in rows {
         let (id, path) = row?;
         let path = norm(Path::new(&path));
-        if (path == root || path.strip_prefix(&root).is_some_and(|x| x.starts_with('/')))
-            && !present.contains(&path)
-        {
+        if (path == root || path.starts_with(&root)) && !present.contains(&path) {
             gone.push(id)
         }
     }
@@ -193,6 +209,20 @@ pub fn mark_root_missing_files(p: &Path, root: &Path, present: &[PathBuf]) -> Re
 }
 pub fn add_scan_root(p: &Path, root: &Path) -> Result<(), AppError> {
     open_connection(p)?.execute("INSERT INTO scan_roots(path,added_at_unix_ms,is_enabled) VALUES(?1,?2,1) ON CONFLICT(path) DO UPDATE SET is_enabled=1",params![root.to_string_lossy(),now_ms()])?;
+    Ok(())
+}
+pub fn finish_scan_root(p: &Path, root: &Path) -> Result<(), AppError> {
+    let connection = open_connection(p)?;
+    if connection.execute(
+        "UPDATE scan_roots SET last_scanned_at_unix_ms=?1 WHERE path=?2",
+        params![now_ms(), root.to_string_lossy()],
+    )? == 0
+    {
+        return Err(AppError::NotFound(format!(
+            "Scan root '{}' was not found.",
+            root.display()
+        )));
+    }
     Ok(())
 }
 pub fn list_scan_roots(p: &Path) -> Result<Vec<ScanRoot>, AppError> {

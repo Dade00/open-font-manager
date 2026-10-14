@@ -231,3 +231,29 @@ fn activation_and_favorite_updates_require_existing_font() {
     assert!(db::set_font_favorite(&path, "absent", true).is_err());
     assert_eq!(FontActivation::Active, FontActivation::Active);
 }
+
+#[test]
+fn active_font_restore_query_pages_past_one_hundred_and_counts_existing_files_only() {
+    let (dir, path) = temp_db();
+    db::migrate(&path).expect("migrate");
+    let existing_path = dir.path().join("present.ttf");
+    std::fs::write(&existing_path, b"font placeholder").expect("write font placeholder");
+
+    for index in 0..105 {
+        let font_path = if index == 0 {
+            existing_path.clone()
+        } else {
+            PathBuf::from(format!("C:/fonts/{index}.ttf"))
+        };
+        let id = format!("active-{index}");
+        db::upsert_font(&path, &font(&id, "Inter", &font_path)).expect("insert active font");
+        db::set_font_active(&path, &id, true).expect("mark active");
+    }
+
+    let active = db::list_active_fonts(&path).expect("load all active font records");
+    assert_eq!(active.len(), 105);
+    assert_eq!(
+        db::count_active_fonts(&path).expect("count on-disk active fonts"),
+        1
+    );
+}
