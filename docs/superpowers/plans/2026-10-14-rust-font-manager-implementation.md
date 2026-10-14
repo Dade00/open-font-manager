@@ -1,3 +1,5 @@
+> **Piano superato dalla migrazione a Tauri:** conservato come documento storico; le istruzioni Iced e le caselle non descrivono lo stato corrente. Per il progetto attuale fare riferimento a `README.md`.
+
 # RustFontManager Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox syntax for tracking.

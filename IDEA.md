@@ -1,3 +1,5 @@
+> **Specifica originaria superata:** questo documento descriveva la versione Iced. Il progetto attuale usa Tauri 2 con React e TypeScript; per architettura e avvio fare riferimento a `README.md` e ai manifest correnti. Il resto è conservato come traccia storica, non come vincolo attuale.
+
 un manager dei font
 Project Specification: RustFontManager (100% Pure Rust Edition)
 

@@ -1,12 +1,10 @@
-pub mod app;
 pub mod db;
 pub mod errors;
-pub mod font_names;
 pub mod font_scanner;
 pub mod google_fonts;
+pub mod installed_fonts;
 pub mod models;
 pub mod paths;
 pub mod services;
 pub mod snippets;
-pub mod theme;
 pub mod win_font_loader;

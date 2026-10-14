@@ -11,7 +11,8 @@ use crate::{
     models::{ScanReport, UpsertOutcome},
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionRestoreReport {
     pub restored: usize,
     pub failed: Vec<String>,
@@ -96,6 +97,20 @@ impl LocalLibraryService {
             }
         }
         Ok(report)
+    }
+
+    pub fn scan_installed_fonts(&self) -> Result<Vec<ScanReport>, AppError> {
+        self.scan_font_roots(crate::installed_fonts::installed_font_roots())
+    }
+
+    pub fn scan_font_roots(
+        &self,
+        roots: impl IntoIterator<Item = PathBuf>,
+    ) -> Result<Vec<ScanReport>, AppError> {
+        roots
+            .into_iter()
+            .map(|root| self.scan_directory(&root))
+            .collect()
     }
 
     pub fn scan_directory(&self, root: &Path) -> Result<ScanReport, AppError> {

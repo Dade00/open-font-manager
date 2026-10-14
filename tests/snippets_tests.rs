@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 
-use iced::font::{Family, Style, Weight};
 use rust_font_manager::{
-    font_names::{font_for_item, intern_font_family},
     models::{FontCategory, FontItem, FontSource},
     snippets::{css_snippet, next_font_snippet},
 };
@@ -26,24 +24,6 @@ fn item(source: FontSource, family: &str) -> FontItem {
         file_modified_unix_ms: 0,
         missing_on_disk: false,
     }
-}
-
-#[test]
-fn family_interning_reuses_static_names_and_keeps_distinct_names_separate() {
-    let first = intern_font_family("Font Intern Test");
-    let repeated = intern_font_family("Font Intern Test");
-    let other = intern_font_family("Font Intern Test Other");
-    assert!(std::ptr::eq(first, repeated));
-    assert_eq!(first, "Font Intern Test");
-    assert_ne!(first, other);
-}
-
-#[test]
-fn iced_font_uses_the_item_family_weight_and_italic_style() {
-    let font = font_for_item(&item(FontSource::Local, "Example Family"));
-    assert_eq!(font.family, Family::Name("Example Family"));
-    assert_eq!(font.weight, Weight::Bold);
-    assert_eq!(font.style, Style::Italic);
 }
 
 #[test]

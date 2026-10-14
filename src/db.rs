@@ -11,7 +11,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 pub fn open_connection(path: &Path) -> Result<Connection, AppError> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| AppError::Storage {
@@ -28,8 +28,7 @@ pub fn migrate(path: &Path) -> Result<(), AppError> {
     let tx = c.transaction()?;
     tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at_unix_ms INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS scan_roots(path TEXT PRIMARY KEY,added_at_unix_ms INTEGER NOT NULL,last_scanned_at_unix_ms INTEGER,is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)));
-CREATE TABLE IF NOT EXISTS fonts(id TEXT PRIMARY KEY,family TEXT NOT NULL,subfamily TEXT NOT NULL,full_name TEXT NOT NULL,weight INTEGER NOT NULL CHECK(weight BETWEEN 1 AND 1000),is_italic INTEGER NOT NULL CHECK(is_italic IN (0,1)),file_path TEXT NOT NULL UNIQUE,source TEXT NOT NULL CHECK(source IN ('local','google')),source_family_id TEXT,source_variant_id TEXT,category TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0,1)),is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0,1)),file_size INTEGER NOT NULL,file_modified_unix_ms INTEGER NOT NULL,missing_on_disk INTEGER NOT NULL DEFAULT 0 CHECK(missing_on_disk IN (0,1)),created_at_unix_ms INTEGER NOT NULL,updated_at_unix_ms INTEGER NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_fonts_family ON fonts(family COLLATE NOCASE);CREATE INDEX IF NOT EXISTS idx_fonts_active ON fonts(is_active);CREATE INDEX IF NOT EXISTS idx_fonts_favorite ON fonts(is_favorite);CREATE INDEX IF NOT EXISTS idx_fonts_source ON fonts(source);
+CREATE TABLE IF NOT EXISTS fonts(id TEXT PRIMARY KEY,family TEXT NOT NULL,subfamily TEXT NOT NULL,full_name TEXT NOT NULL,weight INTEGER NOT NULL CHECK(weight BETWEEN 1 AND 1000),is_italic INTEGER NOT NULL CHECK(is_italic IN (0,1)),file_path TEXT NOT NULL,source TEXT NOT NULL CHECK(source IN ('local','google')),source_family_id TEXT,source_variant_id TEXT,category TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0,1)),is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0,1)),file_size INTEGER NOT NULL,file_modified_unix_ms INTEGER NOT NULL,missing_on_disk INTEGER NOT NULL DEFAULT 0 CHECK(missing_on_disk IN (0,1)),created_at_unix_ms INTEGER NOT NULL,updated_at_unix_ms INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS collections(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE COLLATE NOCASE,created_at_unix_ms INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS collection_items(collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,font_id TEXT NOT NULL REFERENCES fonts(id) ON DELETE CASCADE,PRIMARY KEY(collection_id,font_id));")?;
     let done: bool = tx.query_row(
@@ -38,6 +37,29 @@ CREATE TABLE IF NOT EXISTS collection_items(collection_id INTEGER NOT NULL REFER
         |r| r.get(0),
     )?;
     if !done {
+        let font_table_sql: Option<String> = tx
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='fonts'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if font_table_sql
+            .as_deref()
+            .is_some_and(|sql| sql.contains("file_path TEXT NOT NULL UNIQUE"))
+        {
+            tx.execute_batch(
+                "ALTER TABLE collection_items RENAME TO collection_items_legacy;
+                 ALTER TABLE fonts RENAME TO fonts_legacy;
+                 CREATE TABLE fonts(id TEXT PRIMARY KEY,family TEXT NOT NULL,subfamily TEXT NOT NULL,full_name TEXT NOT NULL,weight INTEGER NOT NULL CHECK(weight BETWEEN 1 AND 1000),is_italic INTEGER NOT NULL CHECK(is_italic IN (0,1)),file_path TEXT NOT NULL,source TEXT NOT NULL CHECK(source IN ('local','google')),source_family_id TEXT,source_variant_id TEXT,category TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0,1)),is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0,1)),file_size INTEGER NOT NULL,file_modified_unix_ms INTEGER NOT NULL,missing_on_disk INTEGER NOT NULL DEFAULT 0 CHECK(missing_on_disk IN (0,1)),created_at_unix_ms INTEGER NOT NULL,updated_at_unix_ms INTEGER NOT NULL);
+                 CREATE TABLE collection_items(collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,font_id TEXT NOT NULL REFERENCES fonts(id) ON DELETE CASCADE,PRIMARY KEY(collection_id,font_id));
+                 INSERT INTO fonts SELECT * FROM fonts_legacy;
+                 INSERT INTO collection_items SELECT * FROM collection_items_legacy;
+                 DROP TABLE collection_items_legacy;
+                 DROP TABLE fonts_legacy;",
+            )?;
+        }
+        tx.execute_batch("CREATE INDEX IF NOT EXISTS idx_fonts_family ON fonts(family COLLATE NOCASE);CREATE INDEX IF NOT EXISTS idx_fonts_active ON fonts(is_active);CREATE INDEX IF NOT EXISTS idx_fonts_favorite ON fonts(is_favorite);CREATE INDEX IF NOT EXISTS idx_fonts_source ON fonts(source);")?;
         tx.execute(
             "INSERT INTO schema_migrations VALUES(?1,?2)",
             params![SCHEMA_VERSION, now_ms()],
@@ -53,14 +75,13 @@ pub fn upsert_font(path: &Path, item: &FontItem) -> Result<UpsertOutcome, AppErr
         ));
     }
     let c = open_connection(path)?;
-    let old=c.query_row("SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk FROM fonts WHERE id=?1 OR file_path=?2 LIMIT 1",params![item.id,item.file_path.to_string_lossy()],row_font).optional()?;
+    let old=c.query_row("SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk FROM fonts WHERE id=?1 OR (file_path=?2 AND source_variant_id IS ?3) LIMIT 1",params![item.id,item.file_path.to_string_lossy(),item.source_variant_id],row_font).optional()?;
     if old.as_ref().is_some_and(|x| same_metadata(x, item)) {
         return Ok(UpsertOutcome::Unchanged);
     }
     let now = now_ms();
     c.execute("INSERT INTO fonts(id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk,created_at_unix_ms,updated_at_unix_ms) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,0,?16,?16)
-ON CONFLICT(id) DO UPDATE SET family=excluded.family,subfamily=excluded.subfamily,full_name=excluded.full_name,weight=excluded.weight,is_italic=excluded.is_italic,file_path=excluded.file_path,source=excluded.source,source_family_id=excluded.source_family_id,source_variant_id=excluded.source_variant_id,category=excluded.category,file_size=excluded.file_size,file_modified_unix_ms=excluded.file_modified_unix_ms,missing_on_disk=0,updated_at_unix_ms=excluded.updated_at_unix_ms
-ON CONFLICT(file_path) DO UPDATE SET id=excluded.id,family=excluded.family,subfamily=excluded.subfamily,full_name=excluded.full_name,weight=excluded.weight,is_italic=excluded.is_italic,source=excluded.source,source_family_id=excluded.source_family_id,source_variant_id=excluded.source_variant_id,category=excluded.category,file_size=excluded.file_size,file_modified_unix_ms=excluded.file_modified_unix_ms,missing_on_disk=0,updated_at_unix_ms=excluded.updated_at_unix_ms",params![item.id,item.family,item.subfamily,item.full_name,item.weight,item.is_italic,item.file_path.to_string_lossy(),source_str(item.source),item.source_family_id,item.source_variant_id,category_str(item.category),item.is_active,item.is_favorite,i64::try_from(item.file_size).unwrap_or(i64::MAX),item.file_modified_unix_ms,now])?;
+ON CONFLICT(id) DO UPDATE SET family=excluded.family,subfamily=excluded.subfamily,full_name=excluded.full_name,weight=excluded.weight,is_italic=excluded.is_italic,file_path=excluded.file_path,source=excluded.source,source_family_id=excluded.source_family_id,source_variant_id=excluded.source_variant_id,category=excluded.category,file_size=excluded.file_size,file_modified_unix_ms=excluded.file_modified_unix_ms,missing_on_disk=0,updated_at_unix_ms=excluded.updated_at_unix_ms",params![item.id,item.family,item.subfamily,item.full_name,item.weight,item.is_italic,item.file_path.to_string_lossy(),source_str(item.source),item.source_family_id,item.source_variant_id,category_str(item.category),item.is_active,item.is_favorite,i64::try_from(item.file_size).unwrap_or(i64::MAX),item.file_modified_unix_ms,now])?;
     Ok(if old.is_some() {
         UpsertOutcome::Updated
     } else {
@@ -128,6 +149,18 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
         page_size: q.page_size,
     })
 }
+
+pub fn font_by_id(path: &Path, id: &str) -> Result<FontItem, AppError> {
+    open_connection(path)?
+        .query_row(
+            "SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk FROM fonts WHERE id=?1",
+            [id],
+            row_font,
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("Font '{id}' was not found.")))
+}
+
 pub fn list_active_fonts(path: &Path) -> Result<Vec<FontItem>, AppError> {
     let mut page = 0;
     let mut active = Vec::new();

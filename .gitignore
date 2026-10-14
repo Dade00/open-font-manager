@@ -1,5 +1,8 @@
 # Rust builds
 /target/
+/src-tauri/target/
+node_modules/
+/dist/
 
 # Local app/test data
 *.db

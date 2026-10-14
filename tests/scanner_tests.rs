@@ -33,8 +33,41 @@ fn copy_font(root: &Path) -> Option<PathBuf> {
 fn supported_extensions_are_case_insensitive_and_reject_web_fonts() {
     assert!(is_supported_font_path(Path::new("SomeFont.TTF")));
     assert!(is_supported_font_path(Path::new("SomeFont.otf")));
+    assert!(is_supported_font_path(Path::new("SomeCollection.ttc")));
     assert!(!is_supported_font_path(Path::new("SomeFont.woff2")));
     assert!(!is_supported_font_path(Path::new("SomeFont.ttf.bak")));
+}
+
+#[test]
+fn scanner_imports_every_face_from_a_system_font_collection() {
+    let root = std::env::var_os("WINDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("C:/Windows"))
+        .join("Fonts");
+    let Some(source) = fs::read_dir(&root)
+        .expect("system fonts directory")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("ttc"))
+        })
+    else {
+        return;
+    };
+    let dir = tempdir().expect("temporary directory");
+    fs::copy(&source, dir.path().join("collection.ttc")).expect("copy font collection");
+    let service = LocalLibraryService::new(dir.path().join("library.sqlite3"));
+
+    let report = service
+        .scan_directory(dir.path())
+        .expect("scan font collection");
+
+    assert!(
+        report.imported > 1,
+        "expected all faces in {source:?}, report: {report:?}"
+    );
 }
 
 #[test]

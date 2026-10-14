@@ -6,7 +6,7 @@ use std::{
 
 use read_fonts::{
     tables::name::{Name, NameId},
-    FontData, FontRead,
+    FileRef, FontData, FontRead,
 };
 use sha2::{Digest, Sha256};
 use skrifa::{FontRef, MetadataProvider, Tag};
@@ -32,9 +32,17 @@ pub fn parse_font_file(path: &Path) -> Result<ParsedFontMetadata, AppError> {
 }
 
 pub fn parse_font_bytes(path: &Path, bytes: &[u8]) -> Result<ParsedFontMetadata, AppError> {
-    let font = FontRef::new(bytes).map_err(|error| AppError::FontParse {
+    parse_font_bytes_at_index(path, bytes, 0)
+}
+
+fn parse_font_bytes_at_index(
+    path: &Path,
+    bytes: &[u8],
+    index: u32,
+) -> Result<ParsedFontMetadata, AppError> {
+    let font = FontRef::from_index(bytes, index).map_err(|error| AppError::FontParse {
         path: path.to_path_buf(),
-        reason: format!("invalid OpenType data: {error:?}"),
+        reason: format!("invalid font data at face {index}: {error:?}"),
     })?;
     let name_table = font
         .table_data(Tag::new(b"name"))
@@ -90,7 +98,9 @@ pub fn is_supported_font_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("ttf") || extension.eq_ignore_ascii_case("otf")
+            extension.eq_ignore_ascii_case("ttf")
+                || extension.eq_ignore_ascii_case("otf")
+                || extension.eq_ignore_ascii_case("ttc")
         })
 }
 
@@ -160,8 +170,44 @@ pub(crate) fn scan_directory_with_items(root: &Path) -> Result<ScanOutcome, AppE
         }
         report.discovered_candidates += 1;
         present_paths.push(path.to_path_buf());
-        match parse_font_file(path) {
-            Ok(metadata) => match font_id(path, None) {
+        let bytes = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                report.failed.push(ScanIssue {
+                    path: path.to_path_buf(),
+                    reason: error.to_string(),
+                });
+                continue;
+            }
+        };
+        let face_count = match FileRef::new(&bytes) {
+            Ok(FileRef::Font(_)) => 1,
+            Ok(FileRef::Collection(collection)) => collection.len(),
+            Err(error) => {
+                report.failed.push(ScanIssue {
+                    path: path.to_path_buf(),
+                    reason: format!("invalid font file: {error:?}"),
+                });
+                continue;
+            }
+        };
+        let is_collection = face_count > 1
+            || path
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("ttc"));
+        for index in 0..face_count {
+            let metadata = match parse_font_bytes_at_index(path, &bytes, index) {
+                Ok(metadata) => metadata,
+                Err(error) => {
+                    report.failed.push(ScanIssue {
+                        path: path.to_path_buf(),
+                        reason: error.to_string(),
+                    });
+                    continue;
+                }
+            };
+            let variant_id = is_collection.then(|| format!("ttc-face-{index}"));
+            match font_id(path, variant_id.as_deref()) {
                 Ok(id) => items.push((
                     path.to_path_buf(),
                     FontItem {
@@ -174,7 +220,7 @@ pub(crate) fn scan_directory_with_items(root: &Path) -> Result<ScanOutcome, AppE
                         file_path: path.to_path_buf(),
                         source: FontSource::Local,
                         source_family_id: None,
-                        source_variant_id: None,
+                        source_variant_id: variant_id,
                         category: FontCategory::Unknown,
                         is_active: false,
                         is_favorite: false,
@@ -187,11 +233,7 @@ pub(crate) fn scan_directory_with_items(root: &Path) -> Result<ScanOutcome, AppE
                     path: path.to_path_buf(),
                     reason: error.to_string(),
                 }),
-            },
-            Err(error) => report.failed.push(ScanIssue {
-                path: path.to_path_buf(),
-                reason: error.to_string(),
-            }),
+            }
         }
     }
     Ok((report, items, present_paths))

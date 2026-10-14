@@ -32,19 +32,22 @@ pub struct CachedCatalog {
     pub items: Vec<GoogleFontCatalogItem>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CatalogSnapshot {
     pub items: Vec<GoogleFontCatalogItem>,
     pub stale: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FamilyDownloadFailure {
     pub variant_id: String,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FamilyDownloadReport {
     pub installed: Vec<FontItem>,
     pub failed: Vec<FamilyDownloadFailure>,

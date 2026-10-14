@@ -71,6 +71,42 @@ fn migration_is_idempotent_and_enables_foreign_keys() {
 }
 
 #[test]
+fn migration_v1_preserves_fonts_and_collection_memberships() {
+    let (_dir, path) = temp_db();
+    let legacy = rusqlite::Connection::open(&path).expect("create legacy database");
+    legacy
+        .execute_batch(
+            "CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,applied_at_unix_ms INTEGER NOT NULL);
+             INSERT INTO schema_migrations VALUES(1,1);
+             CREATE TABLE scan_roots(path TEXT PRIMARY KEY,added_at_unix_ms INTEGER NOT NULL,last_scanned_at_unix_ms INTEGER,is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)));
+             CREATE TABLE fonts(id TEXT PRIMARY KEY,family TEXT NOT NULL,subfamily TEXT NOT NULL,full_name TEXT NOT NULL,weight INTEGER NOT NULL CHECK(weight BETWEEN 1 AND 1000),is_italic INTEGER NOT NULL CHECK(is_italic IN (0,1)),file_path TEXT NOT NULL UNIQUE,source TEXT NOT NULL CHECK(source IN ('local','google')),source_family_id TEXT,source_variant_id TEXT,category TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0,1)),is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0,1)),file_size INTEGER NOT NULL,file_modified_unix_ms INTEGER NOT NULL,missing_on_disk INTEGER NOT NULL DEFAULT 0 CHECK(missing_on_disk IN (0,1)),created_at_unix_ms INTEGER NOT NULL,updated_at_unix_ms INTEGER NOT NULL);
+             CREATE TABLE collections(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE COLLATE NOCASE,created_at_unix_ms INTEGER NOT NULL);
+             CREATE TABLE collection_items(collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,font_id TEXT NOT NULL REFERENCES fonts(id) ON DELETE CASCADE,PRIMARY KEY(collection_id,font_id));
+             INSERT INTO fonts VALUES('font-old','Inter','Regular','Inter Regular',400,0,'C:/fonts/inter.ttf','local',NULL,NULL,'unknown',1,1,1024,100,0,10,10);
+             INSERT INTO collections VALUES(1,'Saved',10);
+             INSERT INTO collection_items VALUES(1,'font-old');",
+        )
+        .expect("write v1 schema");
+    drop(legacy);
+
+    db::migrate(&path).expect("upgrade schema");
+
+    let fonts = db::list_fonts(&path, query(LibraryTab::Local, "Inter", 0, 50))
+        .expect("read migrated font");
+    let collections = db::list_collections(&path).expect("read migrated collection");
+    assert_eq!(fonts.total, 1);
+    assert!(fonts.items[0].is_active);
+    assert!(fonts.items[0].is_favorite);
+    assert_eq!(collections[0].font_count, 1);
+    let mut second_face = font("font-new", "Inter", Path::new("C:/fonts/inter.ttf"));
+    second_face.source_variant_id = Some("ttc-face-1".into());
+    assert_eq!(
+        db::upsert_font(&path, &second_face).expect("insert second face"),
+        UpsertOutcome::Inserted
+    );
+}
+
+#[test]
 fn query_search_is_case_insensitive_and_pages_results() {
     let (_dir, path) = temp_db();
     db::migrate(&path).expect("migrate");
@@ -105,6 +141,28 @@ fn query_rejects_page_sizes_outside_one_to_one_hundred() {
 }
 
 #[test]
+fn font_api_lookup_returns_serializable_camel_case_font_and_rejects_missing_id() {
+    let (_dir, path) = temp_db();
+    db::migrate(&path).expect("migrate");
+    let item = font("font-api", "Inter", Path::new("C:/fonts/inter.ttf"));
+    db::upsert_font(&path, &item).expect("insert font");
+
+    let loaded = db::font_by_id(&path, "font-api").expect("load font");
+    assert_eq!(loaded, item);
+    let serialized = serde_json::to_value(&loaded).expect("serialize Tauri response");
+    assert_eq!(serialized["filePath"], "C:/fonts/inter.ttf");
+    assert_eq!(serialized["source"], "local");
+    let page = db::list_fonts(&path, query(LibraryTab::Local, "Inter", 0, 50))
+        .expect("load serializable font page");
+    let serialized_page = serde_json::to_value(page).expect("serialize font page");
+    assert_eq!(serialized_page["pageSize"], 50);
+    let collection = db::create_collection(&path, "Brand").expect("create collection");
+    let serialized_collection = serde_json::to_value(collection).expect("serialize collection");
+    assert_eq!(serialized_collection["fontCount"], 0);
+    assert!(db::font_by_id(&path, "missing").is_err());
+}
+
+#[test]
 fn upsert_preserves_user_state_and_reports_insert_then_update() {
     let (_dir, path) = temp_db();
     db::migrate(&path).expect("migrate");
@@ -133,6 +191,34 @@ fn upsert_preserves_user_state_and_reports_insert_then_update() {
     assert!(loaded.is_active);
     assert!(loaded.is_favorite);
     assert!(db::upsert_font(&path, &item).expect("unchanged") == UpsertOutcome::Unchanged);
+}
+
+#[test]
+fn database_stores_multiple_faces_from_the_same_collection_file() {
+    let (_dir, path) = temp_db();
+    db::migrate(&path).expect("migrate");
+    let collection_path = Path::new("C:/fonts/cambria.ttc");
+    let mut regular = font("cambria-regular", "Cambria", collection_path);
+    regular.source_variant_id = Some("ttc-face-0".into());
+    let mut italic = font("cambria-italic", "Cambria", collection_path);
+    italic.subfamily = "Italic".into();
+    italic.full_name = "Cambria Italic".into();
+    italic.is_italic = true;
+    italic.source_variant_id = Some("ttc-face-1".into());
+
+    assert_eq!(
+        db::upsert_font(&path, &regular).expect("insert regular face"),
+        UpsertOutcome::Inserted
+    );
+    assert_eq!(
+        db::upsert_font(&path, &italic).expect("insert italic face"),
+        UpsertOutcome::Inserted
+    );
+    let page = db::list_fonts(&path, query(LibraryTab::Local, "Cambria", 0, 50))
+        .expect("list collection faces");
+
+    assert_eq!(page.total, 2);
+    assert_eq!(page.items[0].file_path, page.items[1].file_path);
 }
 
 #[test]

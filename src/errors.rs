@@ -30,8 +30,6 @@ pub enum AppError {
     Clipboard(String),
     #[error("This operation is available only on Windows")]
     UnsupportedPlatform,
-    #[error("Could not load font family '{family}' into Iced: {reason}")]
-    IcedFontLoad { family: String, reason: String },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("The requested item was not found: {0}")]
@@ -60,7 +58,6 @@ impl AppError {
             }
             Self::Clipboard(_) => "Gli appunti di sistema non sono disponibili.".into(),
             Self::UnsupportedPlatform => "Questa funzione è disponibile solo su Windows.".into(),
-            Self::IcedFontLoad { .. } => "Impossibile caricare il font per l'anteprima.".into(),
             Self::InvalidInput(message) | Self::NotFound(message) => message.clone(),
         }
     }
