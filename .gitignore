@@ -9,6 +9,9 @@
 /vault/
 /cache/
 
+# Agent execution workspaces
+/.superpowers/
+
 # IDE / OS
 .vscode/
 .idea/
