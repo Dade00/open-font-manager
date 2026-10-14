@@ -1,0 +1,16 @@
+# Rust builds
+/target/
+
+# Local app/test data
+*.db
+*.db-shm
+*.db-wal
+*.log
+/vault/
+/cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
