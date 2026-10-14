@@ -12,6 +12,8 @@ pub enum FontSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum FontCategory {
     #[default]
+    #[serde(rename = "all")]
+    All,
     #[serde(rename = "unknown")]
     Unknown,
     #[serde(rename = "sans-serif")]
