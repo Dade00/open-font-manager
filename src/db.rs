@@ -1,8 +1,8 @@
 use crate::{
     errors::AppError,
     models::{
-        Collection, FontCategory, FontItem, FontPage, FontQuery, FontSource, LibraryTab, ScanRoot,
-        UpsertOutcome,
+        Collection, FontCategory, FontItem, FontPage, FontQuery, FontSource, LibraryTab,
+        ScanReport, ScanRoot, UpsertOutcome,
     },
 };
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
@@ -11,7 +11,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 5;
 pub fn open_connection(path: &Path) -> Result<Connection, AppError> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| AppError::Storage {
@@ -25,6 +25,7 @@ pub fn open_connection(path: &Path) -> Result<Connection, AppError> {
 }
 pub fn migrate(path: &Path) -> Result<(), AppError> {
     let mut c = open_connection(path)?;
+    c.execute_batch("PRAGMA foreign_keys=OFF;")?;
     let tx = c.transaction()?;
     tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at_unix_ms INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS scan_roots(path TEXT PRIMARY KEY,added_at_unix_ms INTEGER NOT NULL,last_scanned_at_unix_ms INTEGER,is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)));
@@ -59,13 +60,51 @@ CREATE TABLE IF NOT EXISTS collection_items(collection_id INTEGER NOT NULL REFER
                  DROP TABLE fonts_legacy;",
             )?;
         }
-        tx.execute_batch("CREATE INDEX IF NOT EXISTS idx_fonts_family ON fonts(family COLLATE NOCASE);CREATE INDEX IF NOT EXISTS idx_fonts_active ON fonts(is_active);CREATE INDEX IF NOT EXISTS idx_fonts_favorite ON fonts(is_favorite);CREATE INDEX IF NOT EXISTS idx_fonts_source ON fonts(source);")?;
+        if !font_table_sql
+            .as_deref()
+            .is_some_and(|sql| sql.contains("'fontsource'"))
+        {
+            tx.execute_batch("CREATE TABLE fonts_new(id TEXT PRIMARY KEY,family TEXT NOT NULL,subfamily TEXT NOT NULL,full_name TEXT NOT NULL,weight INTEGER NOT NULL CHECK(weight BETWEEN 1 AND 1000),is_italic INTEGER NOT NULL CHECK(is_italic IN (0,1)),file_path TEXT NOT NULL,source TEXT NOT NULL CHECK(source IN ('local','google','fontsource','fontshare','nerd-fonts')),source_family_id TEXT,source_variant_id TEXT,category TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0,1)),is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0,1)),file_size INTEGER NOT NULL,file_modified_unix_ms INTEGER NOT NULL,missing_on_disk INTEGER NOT NULL DEFAULT 0 CHECK(missing_on_disk IN (0,1)),created_at_unix_ms INTEGER NOT NULL,updated_at_unix_ms INTEGER NOT NULL);
+INSERT INTO fonts_new SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk,created_at_unix_ms,updated_at_unix_ms FROM fonts;
+DROP TABLE fonts;
+ALTER TABLE fonts_new RENAME TO fonts;
+CREATE INDEX IF NOT EXISTS idx_fonts_family ON fonts(family COLLATE NOCASE);CREATE INDEX IF NOT EXISTS idx_fonts_active ON fonts(is_active);CREATE INDEX IF NOT EXISTS idx_fonts_favorite ON fonts(is_favorite);CREATE INDEX IF NOT EXISTS idx_fonts_source ON fonts(source);")?;
+        }
+        for (column, definition) in [
+            ("last_discovered_candidates", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_imported", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_updated", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_skipped_unchanged", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_skipped_unsupported", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_failed", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_error", "TEXT"),
+        ] {
+            let exists: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_table_info('scan_roots') WHERE name=?1)",
+                [column],
+                |row| row.get(0),
+            )?;
+            if !exists {
+                tx.execute_batch(&format!(
+                    "ALTER TABLE scan_roots ADD COLUMN {column} {definition}"
+                ))?;
+            }
+        }
+        if tx.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('fonts') WHERE name='is_variable'",
+            [],
+            |r| r.get::<_, i64>(0),
+        )? == 0
+        {
+            tx.execute_batch("ALTER TABLE fonts ADD COLUMN is_variable INTEGER NOT NULL DEFAULT 0 CHECK(is_variable IN (0,1));")?;
+        }
         tx.execute(
             "INSERT INTO schema_migrations VALUES(?1,?2)",
             params![SCHEMA_VERSION, now_ms()],
         )?;
     }
     tx.commit()?;
+    c.execute_batch("PRAGMA foreign_keys=ON;")?;
     Ok(())
 }
 pub fn upsert_font(path: &Path, item: &FontItem) -> Result<UpsertOutcome, AppError> {
@@ -75,26 +114,20 @@ pub fn upsert_font(path: &Path, item: &FontItem) -> Result<UpsertOutcome, AppErr
         ));
     }
     let c = open_connection(path)?;
-    let old=c.query_row("SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk FROM fonts WHERE id=?1 OR (file_path=?2 AND source_variant_id IS ?3) LIMIT 1",params![item.id,item.file_path.to_string_lossy(),item.source_variant_id],row_font).optional()?;
+    let old=c.query_row("SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk,is_variable FROM fonts WHERE id=?1 OR (file_path=?2 AND source_variant_id IS ?3) LIMIT 1",params![item.id,item.file_path.to_string_lossy(),item.source_variant_id],row_font).optional()?;
     if old.as_ref().is_some_and(|x| same_metadata(x, item)) {
         return Ok(UpsertOutcome::Unchanged);
     }
     let now = now_ms();
-    c.execute("INSERT INTO fonts(id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk,created_at_unix_ms,updated_at_unix_ms) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,0,?16,?16)
-ON CONFLICT(id) DO UPDATE SET family=excluded.family,subfamily=excluded.subfamily,full_name=excluded.full_name,weight=excluded.weight,is_italic=excluded.is_italic,file_path=excluded.file_path,source=excluded.source,source_family_id=excluded.source_family_id,source_variant_id=excluded.source_variant_id,category=excluded.category,file_size=excluded.file_size,file_modified_unix_ms=excluded.file_modified_unix_ms,missing_on_disk=0,updated_at_unix_ms=excluded.updated_at_unix_ms",params![item.id,item.family,item.subfamily,item.full_name,item.weight,item.is_italic,item.file_path.to_string_lossy(),source_str(item.source),item.source_family_id,item.source_variant_id,category_str(item.category),item.is_active,item.is_favorite,i64::try_from(item.file_size).unwrap_or(i64::MAX),item.file_modified_unix_ms,now])?;
+    c.execute("INSERT INTO fonts(id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk,is_variable,created_at_unix_ms,updated_at_unix_ms) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,0,?16,?17,?17)
+    ON CONFLICT(id) DO UPDATE SET family=excluded.family,subfamily=excluded.subfamily,full_name=excluded.full_name,weight=excluded.weight,is_italic=excluded.is_italic,file_path=excluded.file_path,source=excluded.source,source_family_id=excluded.source_family_id,source_variant_id=excluded.source_variant_id,category=excluded.category,is_variable=excluded.is_variable,file_size=excluded.file_size,file_modified_unix_ms=excluded.file_modified_unix_ms,missing_on_disk=0,updated_at_unix_ms=excluded.updated_at_unix_ms",params![item.id,item.family,item.subfamily,item.full_name,item.weight,item.is_italic,item.file_path.to_string_lossy(),source_str(item.source),item.source_family_id,item.source_variant_id,category_str(item.category),item.is_active,item.is_favorite,i64::try_from(item.file_size).unwrap_or(i64::MAX),item.file_modified_unix_ms,item.is_variable,now])?;
     Ok(if old.is_some() {
         UpsertOutcome::Updated
     } else {
         UpsertOutcome::Inserted
     })
 }
-pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
-    if !(1..=100).contains(&q.page_size) {
-        return Err(AppError::InvalidInput(
-            "Font page size must be between 1 and 100.".into(),
-        ));
-    }
-    let c = open_connection(path)?;
+fn font_query_filters(q: &FontQuery) -> (String, Vec<Value>) {
     let (mut conditions, mut args) = (vec!["1=1".to_string()], Vec::<Value>::new());
     match q.tab {
         LibraryTab::Local => {}
@@ -113,7 +146,7 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
             Value::Text(x),
         ]);
     }
-    if !matches!(q.category, FontCategory::All | FontCategory::Unknown) {
+    if q.category != FontCategory::All {
         conditions.push("f.category=?".into());
         args.push(Value::Text(category_str(q.category).into()));
     }
@@ -121,7 +154,17 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
         conditions.push("EXISTS(SELECT 1 FROM collection_items ci WHERE ci.font_id=f.id AND ci.collection_id=?)".into());
         args.push(Value::Integer(id));
     }
-    let clause = conditions.join(" AND ");
+    (conditions.join(" AND "), args)
+}
+
+pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
+    if !(1..=100).contains(&q.page_size) {
+        return Err(AppError::InvalidInput(
+            "Font page size must be between 1 and 100.".into(),
+        ));
+    }
+    let c = open_connection(path)?;
+    let (clause, mut args) = font_query_filters(&q);
     let total: i64 = c.query_row(
         &format!("SELECT COUNT(*) FROM fonts f WHERE {clause}"),
         params_from_iter(args.iter()),
@@ -131,7 +174,7 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
         Value::Integer(i64::from(q.page_size)),
         Value::Integer(i64::from(q.page).saturating_mul(i64::from(q.page_size))),
     ]);
-    let mut s=c.prepare(&format!("SELECT f.id,f.family,f.subfamily,f.full_name,f.weight,f.is_italic,f.file_path,f.source,f.source_family_id,f.source_variant_id,f.category,f.is_active,f.is_favorite,f.file_size,f.file_modified_unix_ms,f.missing_on_disk FROM fonts f WHERE {clause} ORDER BY f.family COLLATE NOCASE,f.weight,f.subfamily COLLATE NOCASE LIMIT ? OFFSET ?"))?;
+    let mut s=c.prepare(&format!("SELECT f.id,f.family,f.subfamily,f.full_name,f.weight,f.is_italic,f.file_path,f.source,f.source_family_id,f.source_variant_id,f.category,f.is_active,f.is_favorite,f.file_size,f.file_modified_unix_ms,f.missing_on_disk,f.is_variable FROM fonts f WHERE {clause} ORDER BY f.family COLLATE NOCASE,f.weight,f.subfamily COLLATE NOCASE LIMIT ? OFFSET ?"))?;
     let items = s
         .query_map(params_from_iter(args.iter()), row_font)?
         .collect::<Result<Vec<_>, _>>()?;
@@ -143,10 +186,47 @@ pub fn list_fonts(path: &Path, q: FontQuery) -> Result<FontPage, AppError> {
     })
 }
 
+/// Streams candidates once, retaining only the requested page after live installation checks.
+pub fn list_installed_fonts(
+    path: &Path,
+    mut query: FontQuery,
+    roots: &[std::path::PathBuf],
+) -> Result<FontPage, AppError> {
+    if !(1..=100).contains(&query.page_size) {
+        return Err(AppError::InvalidInput(
+            "Font page size must be between 1 and 100.".into(),
+        ));
+    }
+    query.tab = LibraryTab::Local;
+    let (clause, args) = font_query_filters(&query);
+    let connection = open_connection(path)?;
+    let mut statement = connection.prepare(&format!("SELECT f.id,f.family,f.subfamily,f.full_name,f.weight,f.is_italic,f.file_path,f.source,f.source_family_id,f.source_variant_id,f.category,f.is_active,f.is_favorite,f.file_size,f.file_modified_unix_ms,f.missing_on_disk,f.is_variable FROM fonts f WHERE {clause} ORDER BY f.family COLLATE NOCASE,f.weight,f.subfamily COLLATE NOCASE"))?;
+    let start = (query.page as usize).saturating_mul(query.page_size as usize);
+    let mut total = 0;
+    let mut items = Vec::new();
+    for row in statement.query_map(params_from_iter(args.iter()), row_font)? {
+        let mut font = row?;
+        font.is_installed = font.is_active
+            || crate::installed_fonts::is_installed_font_path(&font.file_path, roots);
+        if font.is_installed {
+            if total >= start && items.len() < query.page_size as usize {
+                items.push(font);
+            }
+            total += 1;
+        }
+    }
+    Ok(FontPage {
+        items,
+        total,
+        page: query.page,
+        page_size: query.page_size,
+    })
+}
+
 pub fn font_by_id(path: &Path, id: &str) -> Result<FontItem, AppError> {
     open_connection(path)?
         .query_row(
-            "SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk FROM fonts WHERE id=?1",
+            "SELECT id,family,subfamily,full_name,weight,is_italic,file_path,source,source_family_id,source_variant_id,category,is_active,is_favorite,file_size,file_modified_unix_ms,missing_on_disk,is_variable FROM fonts WHERE id=?1",
             [id],
             row_font,
         )
@@ -251,9 +331,78 @@ pub fn finish_scan_root(p: &Path, root: &Path) -> Result<(), AppError> {
     }
     Ok(())
 }
+pub fn finish_scan_root_report(p: &Path, report: &ScanReport) -> Result<(), AppError> {
+    let last_error = report.failed.first().map(|issue| {
+        format!("{}: {}", issue.path.display(), issue.reason)
+            .chars()
+            .take(1000)
+            .collect::<String>()
+    });
+    let changed = open_connection(p)?.execute(
+        "UPDATE scan_roots SET last_scanned_at_unix_ms=?1,last_discovered_candidates=?2,last_imported=?3,last_updated=?4,last_skipped_unchanged=?5,last_skipped_unsupported=?6,last_failed=?7,last_error=?8 WHERE path=?9",
+        params![
+            now_ms(),
+            sql_count(report.discovered_candidates),
+            sql_count(report.imported),
+            sql_count(report.updated),
+            sql_count(report.skipped_unchanged),
+            sql_count(report.skipped_unsupported),
+            sql_count(report.failed.len()),
+            last_error,
+            report.root.to_string_lossy(),
+        ],
+    )?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!(
+            "Scan root '{}' was not found.",
+            report.root.display()
+        )));
+    }
+    Ok(())
+}
+pub fn record_scan_root_failure(p: &Path, root: &Path, error: &str) -> Result<(), AppError> {
+    let message = error.chars().take(1000).collect::<String>();
+    let changed = open_connection(p)?.execute(
+        "UPDATE scan_roots SET last_scanned_at_unix_ms=?1,last_discovered_candidates=0,last_imported=0,last_updated=0,last_skipped_unchanged=0,last_skipped_unsupported=0,last_failed=1,last_error=?2 WHERE path=?3",
+        params![now_ms(), message, root.to_string_lossy()],
+    )?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!(
+            "Scan root '{}' was not found.",
+            root.display()
+        )));
+    }
+    Ok(())
+}
+pub fn set_scan_root_enabled(p: &Path, root: &Path, enabled: bool) -> Result<(), AppError> {
+    if open_connection(p)?.execute(
+        "UPDATE scan_roots SET is_enabled=?1 WHERE path=?2",
+        params![enabled, root.to_string_lossy()],
+    )? == 0
+    {
+        return Err(AppError::NotFound(format!(
+            "Scan root '{}' was not found.",
+            root.display()
+        )));
+    }
+    Ok(())
+}
+pub fn remove_scan_root(p: &Path, root: &Path) -> Result<(), AppError> {
+    if open_connection(p)?.execute(
+        "DELETE FROM scan_roots WHERE path=?1",
+        [root.to_string_lossy().as_ref()],
+    )? == 0
+    {
+        return Err(AppError::NotFound(format!(
+            "Scan root '{}' was not found.",
+            root.display()
+        )));
+    }
+    Ok(())
+}
 pub fn list_scan_roots(p: &Path) -> Result<Vec<ScanRoot>, AppError> {
     let c = open_connection(p)?;
-    let mut s=c.prepare("SELECT path,added_at_unix_ms,last_scanned_at_unix_ms,is_enabled FROM scan_roots ORDER BY path COLLATE NOCASE")?;
+    let mut s=c.prepare("SELECT path,added_at_unix_ms,last_scanned_at_unix_ms,is_enabled,last_discovered_candidates,last_imported,last_updated,last_skipped_unchanged,last_skipped_unsupported,last_failed,last_error FROM scan_roots ORDER BY path COLLATE NOCASE")?;
     let rows = s
         .query_map([], |r| {
             Ok(ScanRoot {
@@ -261,6 +410,15 @@ pub fn list_scan_roots(p: &Path) -> Result<Vec<ScanRoot>, AppError> {
                 added_at_unix_ms: r.get(1)?,
                 last_scanned_at_unix_ms: r.get(2)?,
                 is_enabled: r.get(3)?,
+                last_discovered_candidates: usize::try_from(r.get::<_, i64>(4)?)
+                    .unwrap_or(usize::MAX),
+                last_imported: usize::try_from(r.get::<_, i64>(5)?).unwrap_or(usize::MAX),
+                last_updated: usize::try_from(r.get::<_, i64>(6)?).unwrap_or(usize::MAX),
+                last_skipped_unchanged: usize::try_from(r.get::<_, i64>(7)?).unwrap_or(usize::MAX),
+                last_skipped_unsupported: usize::try_from(r.get::<_, i64>(8)?)
+                    .unwrap_or(usize::MAX),
+                last_failed: usize::try_from(r.get::<_, i64>(9)?).unwrap_or(usize::MAX),
+                last_error: r.get(10)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -346,10 +504,12 @@ fn row_font(r: &rusqlite::Row<'_>) -> rusqlite::Result<FontItem> {
         weight: r.get(4)?,
         is_italic: r.get(5)?,
         file_path: PathBuf::from(r.get::<_, String>(6)?),
-        source: if source == "local" {
-            FontSource::Local
-        } else {
-            FontSource::Google
+        source: match source.as_str() {
+            "google" => FontSource::Google,
+            "fontsource" => FontSource::Fontsource,
+            "fontshare" => FontSource::Fontshare,
+            "nerd-fonts" => FontSource::NerdFonts,
+            _ => FontSource::Local,
         },
         source_family_id: r.get(8)?,
         source_variant_id: r.get(9)?,
@@ -360,6 +520,7 @@ fn row_font(r: &rusqlite::Row<'_>) -> rusqlite::Result<FontItem> {
         file_size: u64::try_from(size).unwrap_or(0),
         file_modified_unix_ms: r.get(14)?,
         missing_on_disk: r.get(15)?,
+        is_variable: r.get(16)?,
     })
 }
 fn same_metadata(a: &FontItem, b: &FontItem) -> bool {
@@ -374,6 +535,7 @@ fn same_metadata(a: &FontItem, b: &FontItem) -> bool {
         && a.source_family_id == b.source_family_id
         && a.source_variant_id == b.source_variant_id
         && a.category == b.category
+        && a.is_variable == b.is_variable
         && a.file_size == b.file_size
         && a.file_modified_unix_ms == b.file_modified_unix_ms
         && !a.missing_on_disk
@@ -382,6 +544,9 @@ fn source_str(x: FontSource) -> &'static str {
     match x {
         FontSource::Local => "local",
         FontSource::Google => "google",
+        FontSource::Fontsource => "fontsource",
+        FontSource::Fontshare => "fontshare",
+        FontSource::NerdFonts => "nerd-fonts",
     }
 }
 fn category_str(x: FontCategory) -> &'static str {
@@ -390,6 +555,7 @@ fn category_str(x: FontCategory) -> &'static str {
         FontCategory::SansSerif => "sans-serif",
         FontCategory::Serif => "serif",
         FontCategory::Display => "display",
+        FontCategory::Handwriting => "handwriting",
         FontCategory::Monospace => "monospace",
     }
 }
@@ -398,6 +564,7 @@ fn parse_cat(x: &str) -> FontCategory {
         "sans-serif" => FontCategory::SansSerif,
         "serif" => FontCategory::Serif,
         "display" => FontCategory::Display,
+        "handwriting" => FontCategory::Handwriting,
         "monospace" => FontCategory::Monospace,
         _ => FontCategory::Unknown,
     }
@@ -422,6 +589,10 @@ fn valid_name(x: &str) -> Result<String, AppError> {
     }
     Ok(x.into())
 }
+fn sql_count(value: usize) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 pub enum FontSource {
     Local,
     Google,
+    Fontsource,
+    Fontshare,
+    #[serde(rename = "nerd-fonts")]
+    NerdFonts,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -22,6 +26,8 @@ pub enum FontCategory {
     Serif,
     #[serde(rename = "display")]
     Display,
+    #[serde(rename = "handwriting")]
+    Handwriting,
     #[serde(rename = "monospace")]
     Monospace,
 }
@@ -96,6 +102,7 @@ pub struct FontItem {
     pub full_name: String,
     pub weight: u16,
     pub is_italic: bool,
+    pub is_variable: bool,
     pub file_path: PathBuf,
     pub source: FontSource,
     pub source_family_id: Option<String>,
@@ -143,6 +150,13 @@ pub struct ScanRoot {
     pub added_at_unix_ms: i64,
     pub last_scanned_at_unix_ms: Option<i64>,
     pub is_enabled: bool,
+    pub last_discovered_candidates: usize,
+    pub last_imported: usize,
+    pub last_updated: usize,
+    pub last_skipped_unchanged: usize,
+    pub last_skipped_unsupported: usize,
+    pub last_failed: usize,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,6 +199,75 @@ pub struct ParsedFontMetadata {
     pub full_name: String,
     pub weight: u16,
     pub is_italic: bool,
+    pub is_variable: bool,
     pub file_size: u64,
     pub file_modified_unix_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RemoteFontProvider {
+    Google,
+    FontsourceExtra,
+    Fontshare,
+    NerdFonts,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FontDownloadStrategy {
+    DirectFiles,
+    ZipArchive,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteFontVariant {
+    pub id: String,
+    pub label: String,
+    pub weight: u16,
+    pub is_italic: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteFontCatalogItem {
+    pub id: String,
+    pub provider: RemoteFontProvider,
+    pub family: String,
+    pub category: FontCategory,
+    pub variants: Vec<RemoteFontVariant>,
+    pub preview_variant_id: Option<String>,
+    pub download_strategy: FontDownloadStrategy,
+    pub download_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteFontCatalogSnapshot {
+    pub provider: RemoteFontProvider,
+    pub items: Vec<RemoteFontCatalogItem>,
+    pub fetched_at_unix_ms: i64,
+    pub stale: bool,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteFontFailure {
+    pub variant_id: String,
+    pub stage: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteFontInstallReport {
+    pub provider: RemoteFontProvider,
+    pub family_id: String,
+    pub family: String,
+    pub saved_files: usize,
+    pub indexed_fonts: usize,
+    pub activated_fonts: usize,
+    pub failures: Vec<RemoteFontFailure>,
 }

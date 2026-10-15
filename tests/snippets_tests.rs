@@ -13,6 +13,7 @@ fn item(source: FontSource, family: &str) -> FontItem {
         full_name: format!("{family} Bold Italic"),
         weight: 700,
         is_italic: true,
+        is_variable: false,
         file_path: PathBuf::from("C:/fonts/test-font.ttf"),
         source,
         source_family_id: (source == FontSource::Google).then(|| "open-sans".into()),
@@ -52,4 +53,13 @@ fn local_next_snippet_uses_a_relative_path_and_copy_notice() {
     assert!(snippet.contains("next/font/local"));
     assert!(snippet.contains("src: \"./test-font.ttf\""));
     assert!(snippet.contains("display: \"swap\""));
+}
+
+#[test]
+fn cloud_downloaded_font_uses_a_local_next_snippet() {
+    let snippet =
+        next_font_snippet(&item(FontSource::Fontshare, "Satoshi")).expect("cloud font snippet");
+
+    assert!(snippet.contains("next/font/local"));
+    assert!(snippet.contains("src: \"./test-font.ttf\""));
 }

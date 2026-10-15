@@ -75,6 +75,7 @@ fn parse_font_bytes_at_index(
         400
     };
     let is_italic = attributes.style != skrifa::attribute::Style::Normal;
+    let is_variable = !font.axes().is_empty();
     let metadata = fs::metadata(path).ok();
     let file_modified_unix_ms = metadata
         .as_ref()
@@ -89,6 +90,7 @@ fn parse_font_bytes_at_index(
         full_name,
         weight,
         is_italic,
+        is_variable,
         file_size: metadata.map_or(bytes.len() as u64, |metadata| metadata.len()),
         file_modified_unix_ms,
     })
@@ -237,6 +239,7 @@ pub(crate) fn scan_directory_with_items(root: &Path) -> Result<ScanOutcome, AppE
                         full_name: metadata.full_name,
                         weight: metadata.weight,
                         is_italic: metadata.is_italic,
+                        is_variable: metadata.is_variable,
                         file_path: path.to_path_buf(),
                         source: FontSource::Local,
                         source_family_id: None,

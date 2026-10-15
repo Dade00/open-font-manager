@@ -16,8 +16,8 @@
         "title": "Open Font Manager",
         "width": 1440,
         "height": 920,
-        "minWidth": 1080,
-        "minHeight": 700,
+        "minWidth": 640,
+        "minHeight": 540,
         "resizable": true,
         "dragDropEnabled": true
       }

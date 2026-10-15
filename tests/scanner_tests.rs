@@ -30,6 +30,41 @@ fn copy_font(root: &Path) -> Option<PathBuf> {
 }
 
 #[test]
+fn variable_original_is_detected_indexed_and_preserved_without_static_instances() {
+    let source = std::env::var_os("WINDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("C:/Windows"))
+        .join("Fonts/bahnschrift.ttf");
+    if !source.is_file() {
+        return;
+    }
+    assert!(parse_font_file(&source).unwrap().is_variable);
+    let dir = tempdir().unwrap();
+    let destination = dir.path().join("original.ttf");
+    let original = fs::read(source).unwrap();
+    fs::write(&destination, &original).unwrap();
+    let database = dir.path().join("library.sqlite3");
+    LocalLibraryService::new(database.clone())
+        .scan_directory(dir.path())
+        .unwrap();
+    let page = db::list_fonts(
+        &database,
+        FontQuery {
+            tab: LibraryTab::Local,
+            search: String::new(),
+            category: FontCategory::All,
+            collection_id: None,
+            page: 0,
+            page_size: 100,
+        },
+    )
+    .unwrap();
+    assert_eq!(page.items.len(), 1);
+    assert!(page.items[0].is_variable);
+    assert_eq!(fs::read(destination).unwrap(), original);
+}
+
+#[test]
 fn supported_extensions_are_case_insensitive_and_reject_web_fonts() {
     assert!(is_supported_font_path(Path::new("SomeFont.TTF")));
     assert!(is_supported_font_path(Path::new("SomeFont.otf")));

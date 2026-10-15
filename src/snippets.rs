@@ -27,7 +27,10 @@ pub fn next_font_snippet(item: &FontItem) -> Result<String, AppError> {
                 "import {{ {import_name} }} from \"next/font/google\";\n\nconst {variable} = {import_name}({{\n  subsets: [\"latin\"],\n  weight: [{weight}],\n  style: [{style}],\n}});"
             ))
         }
-        FontSource::Local => {
+        FontSource::Local
+        | FontSource::Fontsource
+        | FontSource::Fontshare
+        | FontSource::NerdFonts => {
             let filename = item
                 .file_path
                 .file_name()

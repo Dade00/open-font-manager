@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import type { FontManagerApi } from './api';
-import type { StartupSnapshot } from './types';
+import type { AppSettingsSnapshot, StartupSnapshot } from './types';
 
 const dragDropMock = vi.hoisted(() => {
   type TestEvent = { payload: { type: string; paths?: string[] } };
@@ -32,6 +32,7 @@ const fixture = {
   weight: 400,
   isItalic: false,
   filePath: 'C:/fonts/fixture.ttf',
+  isVariable: false,
   source: 'local' as const,
   sourceFamilyId: null,
   sourceVariantId: null,
@@ -60,6 +61,14 @@ const initial: StartupSnapshot = {
   dataDirectory: 'C:/Users/fixture/AppData/Local/RustFontManager/RustFontManager',
 };
 
+const googleDisplayCatalog: NonNullable<StartupSnapshot['googleCatalog']> = {
+  items: [{
+    id: 'google-display', family: 'Google Display', subsets: ['latin'], category: 'display',
+    defVariant: 'regular', defSubset: 'latin', variants: ['regular'], popularity: 1,
+  }],
+  stale: false,
+};
+
 function makeApi(): FontManagerApi {
   return {
     initializeApp: vi.fn().mockResolvedValue(initial),
@@ -83,6 +92,32 @@ function makeApi(): FontManagerApi {
     previewGoogleVariant: vi.fn(),
     installGoogleVariant: vi.fn(),
     downloadGoogleFamily: vi.fn(),
+    loadCachedRemoteCatalog: vi.fn().mockResolvedValue(null),
+    refreshRemoteCatalog: vi.fn().mockResolvedValue({
+      provider: 'fontsource-extra', items: [], fetchedAtUnixMs: 0, stale: false, lastError: null,
+    }),
+    getRemotePreviewBytes: vi.fn().mockResolvedValue(new Uint8Array()),
+    downloadRemoteFamily: vi.fn().mockResolvedValue({
+      report: {
+        provider: 'fontsource-extra', familyId: '', family: '', savedFiles: 0,
+        indexedFonts: 0, activatedFonts: 0, failures: [],
+      },
+      fontIds: [],
+    }),
+    getAppSettings: vi.fn().mockResolvedValue({
+      dataDirectory: '', cacheDirectory: '', fontVaultDirectory: '', windowsFontsDirectory: '',
+      scanRoots: [], cloudCatalogs: [],
+    }),
+    addScanRoot: vi.fn().mockResolvedValue({
+      root: '', discoveredCandidates: 0, imported: 0, updated: 0,
+      skippedUnchanged: 0, skippedUnsupported: 0, failed: [],
+    }),
+    scanScanRoot: vi.fn().mockResolvedValue({
+      root: '', discoveredCandidates: 0, imported: 0, updated: 0,
+      skippedUnchanged: 0, skippedUnsupported: 0, failed: [],
+    }),
+    setScanRootEnabled: vi.fn().mockResolvedValue(undefined),
+    removeScanRoot: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -227,11 +262,11 @@ describe('font manager workbench', () => {
 
     catalogList.scrollTop = 300 * 108;
     fireEvent.scroll(catalogList);
-    expect(await screen.findByRole('button', { name: /Google family 301/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Google family 301\b/ })).toBeInTheDocument();
     await waitFor(() => expect(api.previewGoogleVariant).toHaveBeenCalledWith('google-family-301', 'regular'));
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Categoria font' }), 'handwriting');
-    expect(screen.getByRole('button', { name: /Google family 301/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Manoscritto' }));
+    expect(screen.getByRole('button', { name: /^Google family 301\b/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Google family 1\b/ })).not.toBeInTheDocument();
   });
 
@@ -251,13 +286,7 @@ describe('font manager workbench', () => {
     let installed = false;
     vi.mocked(api.initializeApp).mockResolvedValue({
       ...initial,
-      googleCatalog: {
-        items: [{
-          id: 'google-display', family: 'Google Display', subsets: ['latin'], category: 'display',
-          defVariant: 'regular', defSubset: 'latin', variants: ['regular'], popularity: 1,
-        }],
-        stale: false,
-      },
+      googleCatalog: googleDisplayCatalog,
     });
     vi.mocked(api.listFonts).mockImplementation(async (query) => {
       if (query.tab === 'active') return { items: [], total: 0, page: 0, pageSize: query.pageSize };
@@ -275,7 +304,7 @@ describe('font manager workbench', () => {
     await screen.findByRole('heading', { name: 'Fixture Serif' });
     await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
     await screen.findByRole('heading', { name: 'Google Display' });
-    await user.click(await screen.findByRole('button', { name: 'Scarica variante' }));
+    await user.click(await screen.findByRole('button', { name: 'Installa Google Display' }));
 
     await waitFor(() => expect(api.installGoogleVariant).toHaveBeenCalledWith('google-display', 'regular'));
     expect(await screen.findByRole('heading', { name: 'Google Display' })).toBeInTheDocument();
@@ -284,7 +313,7 @@ describe('font manager workbench', () => {
     expect(document.querySelector('.downloaded-section')).not.toBeInTheDocument();
   });
 
-  it('returns to the local library after downloading a Google family', async () => {
+  it('installs Google from a row in one action and activates the downloaded font', async () => {
     const user = userEvent.setup();
     const api = makeApi();
     const googleFont = {
@@ -299,22 +328,16 @@ describe('font manager workbench', () => {
     let installed = false;
     vi.mocked(api.initializeApp).mockResolvedValue({
       ...initial,
-      googleCatalog: {
-        items: [{
-          id: 'google-display', family: 'Google Display', subsets: ['latin'], category: 'display',
-          defVariant: 'regular', defSubset: 'latin', variants: ['regular'], popularity: 1,
-        }],
-        stale: false,
-      },
+      googleCatalog: googleDisplayCatalog,
     });
     vi.mocked(api.listFonts).mockImplementation(async (query) =>
       query.tab === 'local' && installed
         ? { items: [googleFont], total: 1, page: 0, pageSize: query.pageSize }
         : initial.fonts,
     );
-    vi.mocked(api.downloadGoogleFamily).mockImplementation(async () => {
+    vi.mocked(api.installGoogleVariant).mockImplementation(async () => {
       installed = true;
-      return { installed: [googleFont], failed: [] };
+      return googleFont;
     });
     vi.mocked(api.previewGoogleVariant).mockImplementation(() => new Promise(() => {}));
     vi.stubGlobal('IntersectionObserver', undefined);
@@ -322,10 +345,9 @@ describe('font manager workbench', () => {
     render(<App api={api} />);
     await screen.findByRole('heading', { name: 'Fixture Serif' });
     await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
-    await user.click(await screen.findByRole('button', { name: /Scarica famiglia/ }));
-    await user.click(screen.getByRole('button', { name: 'Conferma' }));
+    await user.click(await screen.findByRole('button', { name: 'Installa Google Display' }));
 
-    await waitFor(() => expect(api.downloadGoogleFamily).toHaveBeenCalledWith('google-display'));
+    await waitFor(() => expect(api.setFontActive).toHaveBeenCalledWith('google-family-font', true));
     expect(screen.getByRole('button', { name: /Libreria locale/ })).toHaveAttribute('aria-current', 'page');
     expect(await screen.findByRole('button', { name: /Google Display/ })).toBeInTheDocument();
   });
@@ -364,6 +386,36 @@ describe('font manager workbench', () => {
     expect(await screen.findByRole('button', { name: /Fixture Sans/ })).toBeInTheDocument();
     expect(api.listFonts).toHaveBeenCalledWith(expect.objectContaining({ tab: 'local', page: 0, pageSize: 100 }));
     expect(api.listFonts).toHaveBeenCalledWith(expect.objectContaining({ tab: 'local', page: 1, pageSize: 1 }));
+  });
+
+  it('ignores an older font-list response after switching tabs', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    const staleList = { ...initial.fonts, items: [fixture] };
+    let finishGoogle!: (page: typeof staleList) => void;
+    vi.mocked(api.listFonts).mockImplementation((query) => {
+      if (query.tab === 'active') return Promise.resolve({ items: [], total: 0, page: 0, pageSize: 1 });
+      return query.tab === 'local'
+        ? Promise.resolve({ ...initial.fonts, items: [secondFixture] })
+        : new Promise((resolve) => { finishGoogle = resolve; });
+    });
+    vi.mocked(api.initializeApp).mockResolvedValue({
+      ...initial,
+      fonts: { ...initial.fonts, items: [secondFixture] },
+      googleCatalog: { items: [], stale: false },
+    });
+    render(<App api={api} />);
+
+    await screen.findByRole('heading', { name: 'Fixture Sans' });
+    await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
+    await waitFor(() => expect(finishGoogle).toBeTypeOf('function'));
+
+    await user.click(screen.getByRole('button', { name: /Libreria locale/ }));
+    await screen.findByRole('heading', { name: 'Fixture Sans' });
+
+    finishGoogle({ ...initial.fonts, items: [fixture] });
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole('heading', { name: 'Fixture Sans' })).toBeInTheDocument();
   });
 
   it('requests previews automatically for unselected local fonts', async () => {
@@ -431,5 +483,117 @@ describe('font manager workbench', () => {
     await user.click(await screen.findByRole('button', { name: 'Disinstalla' }));
 
     expect(api.setFontActive).toHaveBeenCalledWith('fixture-serif', false);
+  });
+
+  it('opens the Fontshare catalog from the application navigation', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    render(<App api={api} />);
+
+    await screen.findByRole('heading', { name: 'Fixture Serif' });
+    await user.click(screen.getByRole('button', { name: /Fontshare/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Fontshare' })).toBeInTheDocument();
+    expect(api.loadCachedRemoteCatalog).toHaveBeenCalledWith('fontshare');
+  });
+
+  it('opens settings from the application navigation', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    render(<App api={api} />);
+
+    await screen.findByRole('heading', { name: 'Fixture Serif' });
+    await user.click(screen.getByRole('button', { name: /Impostazioni/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Impostazioni' })).toBeInTheDocument();
+    expect(api.getAppSettings).toHaveBeenCalled();
+  });
+
+  it('refreshes library data and active count after scanning a settings root', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    const settings: AppSettingsSnapshot = {
+      dataDirectory: 'C:/Users/fixture/AppData/Local/RustFontManager/RustFontManager',
+      cacheDirectory: 'C:/cache',
+      fontVaultDirectory: 'C:/vault',
+      windowsFontsDirectory: 'C:/Windows/Fonts',
+      scanRoots: [{
+        isAccessible: true,
+        root: {
+          path: 'C:/fonts', addedAtUnixMs: 1, lastScannedAtUnixMs: 2, isEnabled: true,
+          lastDiscoveredCandidates: 1, lastImported: 0, lastUpdated: 0,
+          lastSkippedUnchanged: 0, lastSkippedUnsupported: 0, lastFailed: 0, lastError: null,
+        },
+      }],
+      cloudCatalogs: [],
+    };
+    vi.mocked(api.getAppSettings).mockResolvedValue(settings);
+    render(<App api={api} />);
+
+    await screen.findByRole('heading', { name: 'Fixture Serif' });
+    await user.click(screen.getByRole('button', { name: /Impostazioni/ }));
+    await user.click(await screen.findByRole('button', { name: 'Scansiona' }));
+
+    await waitFor(() => {
+      expect(api.scanScanRoot).toHaveBeenCalledWith('C:/fonts');
+      expect(api.listFonts).toHaveBeenCalledWith(expect.objectContaining({ tab: 'local' }));
+      expect(api.listFonts).toHaveBeenCalledWith(expect.objectContaining({ tab: 'active', pageSize: 100 }));
+    });
+  });
+
+  it('labels the selected font using its provider', async () => {
+    const api = makeApi();
+    const remoteFont = { ...fixture, source: 'fontshare' as const };
+    vi.mocked(api.initializeApp).mockResolvedValue({
+      ...initial,
+      fonts: { items: [remoteFont], total: 1, page: 0, pageSize: 50 },
+    });
+    vi.mocked(api.listFonts).mockResolvedValue({ items: [remoteFont], total: 1, page: 0, pageSize: 50 });
+    render(<App api={api} />);
+
+    expect(await screen.findByRole('heading', { name: 'Fixture Serif' })).toBeInTheDocument();
+    expect(await screen.findByText('FONTSHARE')).toBeInTheDocument();
+  });
+
+  it('returns an installed cloud family to the local library', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    const importedFont = { ...fixture, id: 'cloud-font', family: 'Cloud Fixture', fullName: 'Cloud Fixture Regular' };
+    const library = [...Array.from({ length: 105 }, (_, index) => ({ ...fixture, id: `earlier-${index}`, family: `Earlier ${index}` })), importedFont];
+    let downloadCompleted = false;
+    vi.mocked(api.refreshRemoteCatalog).mockResolvedValue({
+      provider: 'fontsource-extra',
+      fetchedAtUnixMs: 1,
+      stale: false,
+      lastError: null,
+      items: [{
+        id: 'cloud-family', provider: 'fontsource-extra', family: 'Cloud Fixture', category: 'serif',
+        variants: [{ id: 'regular', label: 'Regular', weight: 400, isItalic: false }],
+        previewVariantId: 'regular', downloadStrategy: 'direct-files', downloadUrl: null,
+      }],
+    });
+    vi.mocked(api.downloadRemoteFamily).mockImplementation(async () => {
+      downloadCompleted = true;
+      return {
+      report: {
+        provider: 'fontsource-extra', familyId: 'cloud-family', family: 'Cloud Fixture',
+        savedFiles: 1, indexedFonts: 1, activatedFonts: 1, failures: [],
+      },
+      fontIds: ['cloud-font'],
+      };
+    });
+    vi.mocked(api.listFonts).mockImplementation(async (query) => downloadCompleted && query.tab === 'local'
+      ? { items: library.slice(query.page * query.pageSize, (query.page + 1) * query.pageSize), total: library.length, page: query.page, pageSize: query.pageSize }
+      : initial.fonts);
+    render(<App api={api} />);
+
+    await screen.findByRole('heading', { name: 'Fixture Serif' });
+    await user.click(screen.getByRole('button', { name: /Fontsource Extra/ }));
+    await user.click(await screen.findByRole('button', { name: 'Installa Cloud Fixture' }));
+
+    expect(await screen.findByRole('heading', { name: 'Cloud Fixture' })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.font-list [aria-pressed="true"]')).toHaveTextContent('Cloud Fixture'));
+    expect(api.listFonts).toHaveBeenCalledWith(expect.objectContaining({ tab: 'local', page: 1, category: 'all', collectionId: null }));
+    expect(api.downloadRemoteFamily).toHaveBeenCalledWith('fontsource-extra', 'cloud-family', null, true);
   });
 });

@@ -10,7 +10,7 @@ use open_font_manager_lib::AppBackend;
 use rust_font_manager::{
     db,
     errors::AppError,
-    models::{FontCategory, FontItem, FontQuery, FontSource, LibraryTab},
+    models::{FontCategory, FontItem, FontQuery, FontSource, LibraryTab, RemoteFontProvider},
     services::font_install::FontRegistration,
 };
 use tempfile::tempdir;
@@ -49,6 +49,7 @@ fn backend_filters_fonts_updates_favorites_and_returns_preview_bytes() {
         full_name: "Fixture Serif Regular".into(),
         weight: 400,
         is_italic: false,
+        is_variable: false,
         file_path: PathBuf::from(&font_file),
         source: FontSource::Local,
         source_family_id: None,
@@ -96,6 +97,25 @@ fn backend_filters_fonts_updates_favorites_and_returns_preview_bytes() {
 }
 
 #[test]
+fn backend_rejects_page_sizes_outside_database_query_contract() {
+    let data = tempdir().unwrap();
+    let cache = tempdir().unwrap();
+    let backend = AppBackend::from_roots(data.path(), cache.path()).unwrap();
+    let query = |page_size| FontQuery {
+        tab: LibraryTab::Active,
+        search: String::new(),
+        category: FontCategory::All,
+        collection_id: None,
+        page: 0,
+        page_size,
+    };
+
+    assert!(backend.list_fonts(query(0)).is_err());
+    assert!(backend.list_fonts(query(101)).is_err());
+    assert!(backend.list_fonts(query(1)).is_ok());
+}
+
+#[test]
 fn backend_marks_existing_system_font_files_as_installed() {
     let data = tempdir().unwrap();
     let cache = tempdir().unwrap();
@@ -116,6 +136,7 @@ fn backend_marks_existing_system_font_files_as_installed() {
         full_name: "System Fixture Regular".into(),
         weight: 400,
         is_italic: false,
+        is_variable: false,
         file_path: source.clone(),
         source: FontSource::Local,
         source_family_id: None,
@@ -198,6 +219,7 @@ fn installing_and_uninstalling_font_changes_windows_registration_and_keeps_libra
         full_name: "Fixture Serif Regular".into(),
         weight: 400,
         is_italic: false,
+        is_variable: false,
         file_path: source.clone(),
         source: FontSource::Local,
         source_family_id: None,
@@ -321,4 +343,78 @@ fn rejects_a_zip_that_contains_no_valid_desktop_fonts() {
     let imports = data.path().join("imported-fonts");
     assert!(imports.is_dir());
     assert_eq!(fs::read_dir(imports).unwrap().count(), 0);
+}
+
+#[test]
+fn settings_expose_all_catalogs_and_scan_root_removal_keeps_indexed_fonts() {
+    let data = tempdir().unwrap();
+    let cache = tempdir().unwrap();
+    let roots = tempdir().unwrap();
+    let scan_root = roots.path().join("typefaces");
+    fs::create_dir(&scan_root).unwrap();
+    let backend = AppBackend::from_roots(data.path(), cache.path()).unwrap();
+
+    let report = backend.add_scan_root(&scan_root).unwrap();
+    assert_eq!(report.imported, 0);
+    let settings = backend.settings_snapshot().unwrap();
+    assert_eq!(settings.scan_roots.len(), 1);
+    assert!(settings.scan_roots[0].is_accessible);
+    assert!(settings.scan_roots[0].root.is_enabled);
+    let providers = settings
+        .cloud_catalogs
+        .iter()
+        .map(|catalog| catalog.provider)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        providers,
+        vec![
+            RemoteFontProvider::Google,
+            RemoteFontProvider::FontsourceExtra,
+            RemoteFontProvider::Fontshare,
+            RemoteFontProvider::NerdFonts,
+        ]
+    );
+
+    let indexed_path = scan_root.join("already-indexed.ttf");
+    fs::write(&indexed_path, b"indexed font fixture").unwrap();
+    db::upsert_font(
+        &backend.paths().database,
+        &FontItem {
+            id: "kept-after-root-removal".into(),
+            family: "Persistent Fixture".into(),
+            subfamily: "Regular".into(),
+            full_name: "Persistent Fixture Regular".into(),
+            weight: 400,
+            is_italic: false,
+            is_variable: false,
+            file_path: indexed_path.clone(),
+            source: FontSource::Local,
+            source_family_id: None,
+            source_variant_id: None,
+            category: FontCategory::Serif,
+            is_active: false,
+            is_installed: false,
+            is_favorite: false,
+            file_size: 20,
+            file_modified_unix_ms: 0,
+            missing_on_disk: false,
+        },
+    )
+    .unwrap();
+
+    let canonical_root = fs::canonicalize(&scan_root).unwrap();
+    backend
+        .set_scan_root_enabled(&canonical_root, false)
+        .unwrap();
+    assert!(backend.scan_scan_root(&canonical_root).is_err());
+    backend.remove_scan_root(&canonical_root).unwrap();
+
+    assert!(indexed_path.is_file());
+    assert_eq!(
+        db::font_by_id(&backend.paths().database, "kept-after-root-removal")
+            .unwrap()
+            .id,
+        "kept-after-root-removal"
+    );
+    assert!(backend.settings_snapshot().unwrap().scan_roots.is_empty());
 }

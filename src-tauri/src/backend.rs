@@ -8,14 +8,21 @@ use std::{
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use rust_font_manager::cloud_fonts::{map_google_catalog, CloudFontsService};
 use rust_font_manager::{
     db,
     errors::AppError,
+    font_scanner::parse_font_bytes,
     google_fonts::GoogleFontsClient,
     installed_fonts::{installed_font_roots, is_installed_font_path},
-    models::{Collection, FontCategory, FontItem, FontPage, FontQuery, LibraryTab, ScanReport},
+    models::{
+        Collection, FontCategory, FontItem, FontPage, FontQuery, LibraryTab,
+        RemoteFontCatalogSnapshot, RemoteFontFailure, RemoteFontInstallReport, RemoteFontProvider,
+        ScanReport, ScanRoot,
+    },
     paths::AppPaths,
     services::{
+        cloud_import::{CloudFontImportOutcome, CloudFontImporter},
         font_install::{FontInstaller, FontRegistration, WindowsFontRegistration},
         google_library::{CatalogSnapshot, FamilyDownloadReport, GoogleLibraryService},
         local_library::LocalLibraryService,
@@ -30,6 +37,9 @@ pub struct AppBackend {
     font_installer: FontInstaller<Arc<dyn FontRegistration>>,
     google: Option<GoogleLibraryService>,
     google_error: Option<String>,
+    cloud: Option<CloudFontsService>,
+    cloud_error: Option<String>,
+    cloud_importer: CloudFontImporter,
     maintenance_started: AtomicBool,
 }
 
@@ -63,6 +73,35 @@ pub struct GooglePreview {
     pub is_italic: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanRootSettings {
+    pub root: ScanRoot,
+    pub is_accessible: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteCatalogStatus {
+    pub provider: RemoteFontProvider,
+    pub available: bool,
+    pub item_count: usize,
+    pub fetched_at_unix_ms: Option<i64>,
+    pub stale: Option<bool>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsSnapshot {
+    pub data_directory: PathBuf,
+    pub cache_directory: PathBuf,
+    pub font_vault_directory: PathBuf,
+    pub windows_fonts_directory: PathBuf,
+    pub scan_roots: Vec<ScanRootSettings>,
+    pub cloud_catalogs: Vec<RemoteCatalogStatus>,
+}
+
 impl AppBackend {
     pub fn new(paths: AppPaths) -> Result<Self, String> {
         let install_dir = user_font_directory(&paths.data_dir);
@@ -79,12 +118,22 @@ impl AppBackend {
             Ok(client) => (Some(GoogleLibraryService::new(client, paths.clone())), None),
             Err(error) => (None, Some(error.user_message())),
         };
+        let (cloud, cloud_error) =
+            match CloudFontsService::new(paths.cache_dir.join("cloud-catalogs")) {
+                Ok(service) => (Some(service), None),
+                Err(error) => (None, Some(error.user_message())),
+            };
+        let cloud_importer =
+            CloudFontImporter::new(paths.data_dir.join("vault"), paths.database.clone());
         Ok(Self {
             local: LocalLibraryService::new(paths.database.clone()),
             font_installer: FontInstaller::new(install_dir, registration),
             paths,
             google,
             google_error,
+            cloud,
+            cloud_error,
+            cloud_importer,
             maintenance_started: AtomicBool::new(false),
         })
     }
@@ -185,37 +234,13 @@ impl AppBackend {
     }
 
     pub fn list_fonts(&self, query: FontQuery) -> Result<FontPage, String> {
+        if !(1..=100).contains(&query.page_size) {
+            return Err("Font page size must be between 1 and 100.".into());
+        }
         let roots = installed_font_roots();
         if query.tab == LibraryTab::Active {
-            let mut scan_query = query.clone();
-            scan_query.tab = LibraryTab::Local;
-            scan_query.page = 0;
-            scan_query.page_size = 100;
-            let mut installed = Vec::new();
-            loop {
-                let mut page = db::list_fonts(&self.paths.database, scan_query.clone())
-                    .map_err(user_message)?;
-                mark_installed(&mut page.items, &roots);
-                installed.extend(page.items.into_iter().filter(|font| font.is_installed));
-                if (scan_query.page as u64 + 1) * scan_query.page_size as u64 >= page.total as u64 {
-                    break;
-                }
-                scan_query.page += 1;
-            }
-            let total = installed.len();
-            let page_size = query.page_size.clamp(1, 100);
-            let start = (query.page as usize).saturating_mul(page_size as usize);
-            let items = installed
-                .into_iter()
-                .skip(start)
-                .take(page_size as usize)
-                .collect();
-            return Ok(FontPage {
-                items,
-                total,
-                page: query.page,
-                page_size,
-            });
+            return db::list_installed_fonts(&self.paths.database, query, &roots)
+                .map_err(user_message);
         }
 
         let mut page = db::list_fonts(&self.paths.database, query).map_err(user_message)?;
@@ -408,6 +433,355 @@ impl AppBackend {
             .download_family(family_id)
             .await
             .map_err(user_message)
+    }
+}
+
+impl AppBackend {
+    pub fn load_cached_remote_catalog(
+        &self,
+        provider: RemoteFontProvider,
+    ) -> Result<Option<RemoteFontCatalogSnapshot>, String> {
+        if provider == RemoteFontProvider::Google {
+            let snapshot = self
+                .google
+                .as_ref()
+                .ok_or_else(|| {
+                    self.google_error
+                        .clone()
+                        .unwrap_or_else(|| "Google Fonts non disponibile.".into())
+                })?
+                .load_cached_catalog()
+                .map_err(user_message)?;
+            return Ok(snapshot.map(google_snapshot_to_remote));
+        }
+        self.cloud
+            .as_ref()
+            .ok_or_else(|| {
+                self.cloud_error
+                    .clone()
+                    .unwrap_or_else(|| "Cataloghi cloud non disponibili.".into())
+            })?
+            .load_cached_catalog(provider)
+            .map_err(user_message)
+    }
+
+    pub async fn refresh_remote_catalog(
+        &self,
+        provider: RemoteFontProvider,
+    ) -> Result<RemoteFontCatalogSnapshot, String> {
+        if provider == RemoteFontProvider::Google {
+            let snapshot = self
+                .google
+                .as_ref()
+                .ok_or_else(|| {
+                    self.google_error
+                        .clone()
+                        .unwrap_or_else(|| "Google Fonts non disponibile.".into())
+                })?
+                .refresh_catalog()
+                .await
+                .map_err(user_message)?;
+            return Ok(google_snapshot_to_remote(snapshot));
+        }
+        self.cloud
+            .as_ref()
+            .ok_or_else(|| {
+                self.cloud_error
+                    .clone()
+                    .unwrap_or_else(|| "Cataloghi cloud non disponibili.".into())
+            })?
+            .refresh_catalog(provider)
+            .await
+            .map_err(user_message)
+    }
+
+    pub fn settings_snapshot(&self) -> Result<AppSettingsSnapshot, String> {
+        let scan_roots = db::list_scan_roots(&self.paths.database)
+            .map_err(user_message)?
+            .into_iter()
+            .map(|root| ScanRootSettings {
+                is_accessible: fs::read_dir(&root.path).is_ok(),
+                root,
+            })
+            .collect();
+        let cloud_catalogs = [
+            RemoteFontProvider::Google,
+            RemoteFontProvider::FontsourceExtra,
+            RemoteFontProvider::Fontshare,
+            RemoteFontProvider::NerdFonts,
+        ]
+        .into_iter()
+        .map(|provider| {
+            let snapshot = self.load_cached_remote_catalog(provider);
+            let (available, item_count, fetched_at_unix_ms, stale, last_error) = match snapshot {
+                Ok(Some(snapshot)) => (
+                    true,
+                    snapshot.items.len(),
+                    Some(snapshot.fetched_at_unix_ms),
+                    Some(snapshot.stale),
+                    snapshot.last_error,
+                ),
+                Ok(None) => (
+                    self.provider_available(provider),
+                    0,
+                    None,
+                    None,
+                    self.provider_error(provider),
+                ),
+                Err(error) => (
+                    self.provider_available(provider),
+                    0,
+                    None,
+                    None,
+                    Some(error),
+                ),
+            };
+            RemoteCatalogStatus {
+                provider,
+                available,
+                item_count,
+                fetched_at_unix_ms,
+                stale,
+                last_error,
+            }
+        })
+        .collect();
+        Ok(AppSettingsSnapshot {
+            data_directory: self.paths.data_dir.clone(),
+            cache_directory: self.paths.cache_dir.clone(),
+            font_vault_directory: self.paths.data_dir.join("vault"),
+            windows_fonts_directory: user_font_directory(&self.paths.data_dir),
+            scan_roots,
+            cloud_catalogs,
+        })
+    }
+
+    pub fn add_scan_root(&self, path: &Path) -> Result<ScanReport, String> {
+        let canonical = self.local.register_scan_root(path).map_err(user_message)?;
+        self.local.scan_directory(&canonical).map_err(user_message)
+    }
+
+    pub fn scan_scan_root(&self, path: &Path) -> Result<ScanReport, String> {
+        let roots = db::list_scan_roots(&self.paths.database).map_err(user_message)?;
+        let root = roots
+            .into_iter()
+            .find(|root| root.path == path)
+            .ok_or_else(|| "La cartella non è configurata come radice di scansione.".to_owned())?;
+        if !root.is_enabled {
+            return Err("Riattiva la cartella prima di avviare la scansione.".into());
+        }
+        self.local.scan_directory(path).map_err(user_message)
+    }
+
+    pub fn set_scan_root_enabled(&self, path: &Path, enabled: bool) -> Result<(), String> {
+        db::set_scan_root_enabled(&self.paths.database, path, enabled).map_err(user_message)
+    }
+
+    pub fn remove_scan_root(&self, path: &Path) -> Result<(), String> {
+        db::remove_scan_root(&self.paths.database, path).map_err(user_message)
+    }
+
+    pub async fn preview_remote_variant(
+        &self,
+        provider: RemoteFontProvider,
+        family_id: &str,
+        variant_id: &str,
+    ) -> Result<Vec<u8>, String> {
+        let bytes = match provider {
+            RemoteFontProvider::Google => {
+                self.google
+                    .as_ref()
+                    .ok_or_else(|| {
+                        self.google_error
+                            .clone()
+                            .unwrap_or_else(|| "Google Fonts non disponibile.".into())
+                    })?
+                    .preview_variant(family_id, Some(variant_id))
+                    .await
+                    .map_err(user_message)?
+                    .0
+            }
+            RemoteFontProvider::FontsourceExtra => {
+                let client = self
+                    .cloud
+                    .as_ref()
+                    .ok_or_else(|| {
+                        self.cloud_error
+                            .clone()
+                            .unwrap_or_else(|| "Cataloghi cloud non disponibili.".into())
+                    })?
+                    .client();
+                let variants = client
+                    .fetch_fontsource_details(family_id)
+                    .await
+                    .map_err(user_message)?;
+                let variant = variants
+                    .iter()
+                    .find(|variant| variant.variant_id == variant_id)
+                    .ok_or_else(|| format!("La variante Fontsource '{variant_id}' non esiste."))?;
+                client
+                    .download_fontsource_ttf(&variant.url)
+                    .await
+                    .map_err(user_message)?
+            }
+            RemoteFontProvider::Fontshare => {
+                let item = self.resolve_remote_item(provider, family_id).await?;
+                let url = item.download_url.as_deref().ok_or_else(|| {
+                    "Fontshare non ha fornito un archivio scaricabile.".to_owned()
+                })?;
+                let bytes = self
+                    .cloud
+                    .as_ref()
+                    .ok_or_else(|| {
+                        self.cloud_error
+                            .clone()
+                            .unwrap_or_else(|| "Cataloghi cloud non disponibili.".into())
+                    })?
+                    .client()
+                    .download_archive(provider, url)
+                    .await
+                    .map_err(user_message)?;
+                self.cloud_importer
+                    .preview_archive_font(&item, &bytes, variant_id)
+                    .map_err(user_message)?
+            }
+            RemoteFontProvider::NerdFonts => {
+                return Err("Nerd Fonts non espone un file di anteprima leggero.".into());
+            }
+        };
+        parse_font_bytes(Path::new("remote-preview"), &bytes).map_err(user_message)?;
+        Ok(bytes)
+    }
+
+    pub async fn download_remote_family(
+        &self,
+        provider: RemoteFontProvider,
+        family_id: &str,
+        variant_id: Option<&str>,
+        activate: bool,
+    ) -> Result<CloudFontImportOutcome, String> {
+        let mut outcome = if provider == RemoteFontProvider::Google {
+            let service = self.google.as_ref().ok_or_else(|| {
+                self.google_error
+                    .clone()
+                    .unwrap_or_else(|| "Google Fonts non disponibile.".into())
+            })?;
+            if let Some(variant_id) = variant_id {
+                let item = service
+                    .install_variant(family_id, variant_id)
+                    .await
+                    .map_err(user_message)?;
+                CloudFontImportOutcome {
+                    report: RemoteFontInstallReport {
+                        provider,
+                        family_id: family_id.to_owned(),
+                        family: item.family,
+                        saved_files: 1,
+                        indexed_fonts: 1,
+                        activated_fonts: 0,
+                        failures: Vec::new(),
+                    },
+                    font_ids: vec![item.id],
+                }
+            } else {
+                let FamilyDownloadReport { installed, failed } = service
+                    .download_family(family_id)
+                    .await
+                    .map_err(user_message)?;
+                let family = installed
+                    .first()
+                    .map(|item| item.family.clone())
+                    .unwrap_or_else(|| family_id.to_owned());
+                CloudFontImportOutcome {
+                    report: RemoteFontInstallReport {
+                        provider,
+                        family_id: family_id.to_owned(),
+                        family,
+                        saved_files: installed.len(),
+                        indexed_fonts: installed.len(),
+                        activated_fonts: 0,
+                        failures: failed
+                            .into_iter()
+                            .map(|failure| RemoteFontFailure {
+                                variant_id: failure.variant_id,
+                                stage: "download".into(),
+                                reason: failure.reason,
+                            })
+                            .collect(),
+                    },
+                    font_ids: installed.into_iter().map(|item| item.id).collect(),
+                }
+            }
+        } else {
+            let item = self.resolve_remote_item(provider, family_id).await?;
+            let cloud = self.cloud.as_ref().ok_or_else(|| {
+                self.cloud_error
+                    .clone()
+                    .unwrap_or_else(|| "Cataloghi cloud non disponibili.".into())
+            })?;
+            self.cloud_importer
+                .import_catalog_item(cloud.client(), &item)
+                .await
+                .map_err(user_message)?
+        };
+
+        if activate {
+            for font_id in &outcome.font_ids {
+                match self.set_font_active(font_id, true) {
+                    Ok(()) => outcome.report.activated_fonts += 1,
+                    Err(reason) => outcome.report.failures.push(RemoteFontFailure {
+                        variant_id: font_id.clone(),
+                        stage: "activation".into(),
+                        reason,
+                    }),
+                }
+            }
+        }
+        Ok(outcome)
+    }
+
+    async fn resolve_remote_item(
+        &self,
+        provider: RemoteFontProvider,
+        family_id: &str,
+    ) -> Result<rust_font_manager::models::RemoteFontCatalogItem, String> {
+        if let Some(snapshot) = self.load_cached_remote_catalog(provider)? {
+            if let Some(item) = snapshot.items.into_iter().find(|item| item.id == family_id) {
+                return Ok(item);
+            }
+        }
+        self.refresh_remote_catalog(provider)
+            .await?
+            .items
+            .into_iter()
+            .find(|item| item.id == family_id)
+            .ok_or_else(|| {
+                format!("Il font '{family_id}' non è presente nel catalogo {provider:?}.")
+            })
+    }
+
+    fn provider_available(&self, provider: RemoteFontProvider) -> bool {
+        match provider {
+            RemoteFontProvider::Google => self.google.is_some(),
+            _ => self.cloud.is_some(),
+        }
+    }
+
+    fn provider_error(&self, provider: RemoteFontProvider) -> Option<String> {
+        match provider {
+            RemoteFontProvider::Google => self.google_error.clone(),
+            _ => self.cloud_error.clone(),
+        }
+    }
+}
+
+fn google_snapshot_to_remote(snapshot: CatalogSnapshot) -> RemoteFontCatalogSnapshot {
+    RemoteFontCatalogSnapshot {
+        provider: RemoteFontProvider::Google,
+        items: map_google_catalog(&snapshot.items),
+        fetched_at_unix_ms: snapshot.fetched_at_unix_ms,
+        stale: snapshot.stale,
+        last_error: snapshot.last_error,
     }
 }
 

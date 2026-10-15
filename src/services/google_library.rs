@@ -36,7 +36,9 @@ pub struct CachedCatalog {
 #[serde(rename_all = "camelCase")]
 pub struct CatalogSnapshot {
     pub items: Vec<GoogleFontCatalogItem>,
+    pub fetched_at_unix_ms: i64,
     pub stale: bool,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -71,7 +73,9 @@ impl GoogleLibraryService {
         let stale = now_ms().saturating_sub(catalog.fetched_at_unix_ms) >= CATALOG_MAX_AGE_MS;
         Ok(Some(CatalogSnapshot {
             items: catalog.items,
+            fetched_at_unix_ms: catalog.fetched_at_unix_ms,
             stale,
+            last_error: None,
         }))
     }
 
@@ -86,7 +90,9 @@ impl GoogleLibraryService {
                 if let Some(catalog) = existing {
                     return Ok(CatalogSnapshot {
                         items: catalog.items,
+                        fetched_at_unix_ms: catalog.fetched_at_unix_ms,
                         stale: true,
+                        last_error: Some(error.user_message()),
                     });
                 }
                 return Err(error);
@@ -111,7 +117,9 @@ impl GoogleLibraryService {
         self.write_cache(&next)?;
         Ok(CatalogSnapshot {
             items: next.items,
+            fetched_at_unix_ms: next.fetched_at_unix_ms,
             stale: false,
+            last_error: None,
         })
     }
 
@@ -218,6 +226,7 @@ impl GoogleLibraryService {
                 .filter(|weight| (1..=1000).contains(weight))
                 .unwrap_or(metadata.weight),
             is_italic: variant.font_style.eq_ignore_ascii_case("italic") || metadata.is_italic,
+            is_variable: metadata.is_variable,
             file_path: target,
             source: FontSource::Google,
             source_family_id: Some(family_id.to_owned()),
@@ -338,6 +347,7 @@ fn normalize_category(category: &str) -> FontCategory {
         "sans-serif" => FontCategory::SansSerif,
         "serif" => FontCategory::Serif,
         "display" => FontCategory::Display,
+        "handwriting" => FontCategory::Handwriting,
         "monospace" => FontCategory::Monospace,
         _ => FontCategory::Unknown,
     }

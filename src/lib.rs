@@ -1,3 +1,4 @@
+pub mod cloud_fonts;
 pub mod db;
 pub mod errors;
 pub mod font_scanner;

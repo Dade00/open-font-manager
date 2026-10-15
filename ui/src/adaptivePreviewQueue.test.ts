@@ -1,57 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
-import { AdaptivePreviewQueue } from './adaptivePreviewQueue';
+import { PreviewQueue } from './adaptivePreviewQueue';
 
-describe('adaptive preview queue', () => {
-  it('adjusts parallel preview work using measured completion times', async () => {
-    const clock = { now: 0 };
-    const queue = new AdaptivePreviewQueue({
-      maxConcurrency: 3,
-      fastThresholdMs: 100,
-      slowThresholdMs: 300,
-      now: () => clock.now,
+describe('preview queue', () => {
+  it('runs jobs FIFO with bounded concurrency and deduplicates keys', async () => {
+    const queue = new PreviewQueue({ maxConcurrency: 2 });
+    const releases: Array<() => void> = [];
+    const started: string[] = [];
+    const run = (key: string) => () => new Promise<void>((resolve) => {
+      started.push(key);
+      releases.push(resolve);
     });
 
-    await Promise.all(Array.from({ length: 3 }, (_, index) => queue.enqueue(`fast-${index}`, async () => {
-      clock.now += 40;
-    })));
-    expect(queue.concurrency).toBe(2);
+    const first = queue.enqueue('first', run('first'));
+    const duplicate = queue.enqueue('first', run('duplicate'));
+    const second = queue.enqueue('second', run('second'));
+    const third = queue.enqueue('third', run('third'));
+    expect(duplicate).toBe(first);
+    expect(started).toEqual(['first', 'second']);
 
-    const releaseBurst: Array<() => void> = [];
-    let burstStarted = 0;
-    const burst = ['burst-1', 'burst-2', 'burst-3'].map((key) => queue.enqueue(key, () => new Promise<void>((resolve) => {
-      burstStarted += 1;
-      releaseBurst.push(resolve);
-    })));
-    expect(burstStarted).toBe(2);
-    releaseBurst.splice(0).forEach((release) => release());
-    for (let attempt = 0; attempt < 10 && burstStarted < 3; attempt += 1) await Promise.resolve();
-    expect(burstStarted).toBe(3);
-    releaseBurst.splice(0).forEach((release) => release());
-    await Promise.all(burst);
-
-    await queue.enqueue('slow-1', async () => { clock.now += 400; });
-    await queue.enqueue('slow-2', async () => { clock.now += 400; });
-    expect(queue.concurrency).toBe(1);
-
-    const releaseSlow: Array<() => void> = [];
-    let slowStarted = 0;
-    const slowBurst = ['slow-a', 'slow-b', 'slow-c'].map((key) => queue.enqueue(key, () => new Promise<void>((resolve) => {
-      slowStarted += 1;
-      releaseSlow.push(resolve);
-    })));
-    expect(slowStarted).toBe(1);
-    releaseSlow.splice(0).forEach((release) => release());
-    for (let attempt = 0; attempt < 10 && slowStarted < 2; attempt += 1) await Promise.resolve();
-    expect(slowStarted).toBe(2);
-    releaseSlow.splice(0).forEach((release) => release());
-    for (let attempt = 0; attempt < 10 && slowStarted < 3; attempt += 1) await Promise.resolve();
-    releaseSlow.splice(0).forEach((release) => release());
-    await Promise.all(slowBurst);
+    releases.splice(0, 2).forEach((release) => release());
+    for (let attempt = 0; attempt < 10 && started.length < 3; attempt += 1) await Promise.resolve();
+    expect(started).toEqual(['first', 'second', 'third']);
+    releases.splice(0).forEach((release) => release());
+    await Promise.all([first, second, third]);
+    queue.dispose();
   });
 
   it('cancels queued previews that leave the viewport before loading', async () => {
-    const queue = new AdaptivePreviewQueue({ maxConcurrency: 1 });
+    const queue = new PreviewQueue({ maxConcurrency: 1 });
     let releaseActive: (() => void) | undefined;
     let canceledTaskRan = false;
 

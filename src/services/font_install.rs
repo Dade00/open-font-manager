@@ -44,8 +44,7 @@ impl<R: FontRegistration> FontInstaller<R> {
         full_name: &str,
         source: &Path,
     ) -> Result<PathBuf, AppError> {
-        let destination = self.destination(font_id, source)?;
-        let value_name = registration_name(font_id, full_name);
+        let (destination, value_name) = self.install_names(font_id, full_name, source)?;
         let bytes = std::fs::read(source).map_err(|error| storage_error(source, error))?;
         std::fs::create_dir_all(&self.install_dir)
             .map_err(|error| storage_error(&self.install_dir, error))?;
@@ -85,8 +84,7 @@ impl<R: FontRegistration> FontInstaller<R> {
     }
 
     pub fn uninstall(&self, font_id: &str, full_name: &str, source: &Path) -> Result<(), AppError> {
-        let destination = self.destination(font_id, source)?;
-        let value_name = registration_name(font_id, full_name);
+        let (destination, value_name) = self.install_names(font_id, full_name, source)?;
         self.registration.unregister(&value_name)?;
         if destination.exists() {
             if let Err(error) = std::fs::remove_file(&destination) {
@@ -99,7 +97,12 @@ impl<R: FontRegistration> FontInstaller<R> {
         Ok(())
     }
 
-    fn destination(&self, font_id: &str, source: &Path) -> Result<PathBuf, AppError> {
+    fn install_names(
+        &self,
+        font_id: &str,
+        full_name: &str,
+        source: &Path,
+    ) -> Result<(PathBuf, String), AppError> {
         let extension = source
             .extension()
             .and_then(|extension| extension.to_str())
@@ -109,22 +112,22 @@ impl<R: FontRegistration> FontInstaller<R> {
                     .any(|supported| extension.eq_ignore_ascii_case(supported))
             })
             .ok_or_else(|| AppError::InvalidInput("Formato font non supportato.".into()))?;
-        let mut hash = Sha256::new();
-        hash.update(font_id.as_bytes());
-        let id_hash = format!("{:x}", hash.finalize());
-        Ok(self.install_dir.join(format!(
-            "OFM_{}.{}",
-            &id_hash[..16],
-            extension.to_ascii_lowercase()
-        )))
+        let id_hash = font_id_digest(font_id);
+        Ok((
+            self.install_dir.join(format!(
+                "OFM_{}.{}",
+                &id_hash[..16],
+                extension.to_ascii_lowercase()
+            )),
+            format!("{full_name} (Open Font Manager {})", &id_hash[..8]),
+        ))
     }
 }
 
-fn registration_name(font_id: &str, full_name: &str) -> String {
+fn font_id_digest(font_id: &str) -> String {
     let mut hash = Sha256::new();
     hash.update(font_id.as_bytes());
-    let id_hash = format!("{:x}", hash.finalize());
-    format!("{full_name} (Open Font Manager {})", &id_hash[..8])
+    format!("{:x}", hash.finalize())
 }
 
 fn storage_error(path: &Path, error: std::io::Error) -> AppError {

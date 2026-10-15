@@ -5,7 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { fontManagerApi } from './api';
 import type { FontManagerApi } from './api';
-import { AdaptivePreviewQueue } from './adaptivePreviewQueue';
+import { PreviewQueue } from './adaptivePreviewQueue';
+import { CloudCatalogView } from './CloudCatalogView';
+import { SettingsView } from './SettingsView';
+import { CategoryFilter } from './CategoryFilter';
+import { categoryLabel, normalizeCategory } from './categories';
 import type {
   CatalogSnapshot,
   Collection,
@@ -15,6 +19,7 @@ import type {
   GoogleFontCatalogItem,
   LibraryTab,
   StartupSnapshot,
+  RemoteFontProvider,
 } from './types';
 import './styles.css';
 
@@ -22,18 +27,19 @@ const FONT_PAGE_SIZE = 100;
 const PREVIEW_SAMPLE = 'Sphinx of black quartz, judge my vow.';
 const GOOGLE_ROW_HEIGHT = 108;
 const GOOGLE_VIEWPORT_FALLBACK = 520;
-const NAVIGATION: { tab: LibraryTab; label: string; description: string }[] = [
-  { tab: 'local', label: 'Libreria locale', description: 'Font sul dispositivo' },
-  { tab: 'favorites', label: 'Preferiti', description: 'La tua selezione' },
-  { tab: 'google', label: 'Google Fonts', description: 'Catalogo online' },
+const PREVIEW_CONCURRENCY = 3;
+type AppSection = 'library' | 'fontsource-extra' | 'fontshare' | 'nerd-fonts' | 'settings';
+type NavigationItem = { id: string; section: AppSection; label: string; description: string; tab?: LibraryTab };
+const NAVIGATION: NavigationItem[] = [
+  { id: 'local', section: 'library', tab: 'local', label: 'Libreria locale', description: 'Font sul dispositivo' },
+  { id: 'favorites', section: 'library', tab: 'favorites', label: 'Preferiti', description: 'La tua selezione' },
+  { id: 'google', section: 'library', tab: 'google', label: 'Google Fonts', description: 'Catalogo online' },
+  { id: 'fontsource-extra', section: 'fontsource-extra', label: 'Fontsource Extra', description: 'Catalogo online' },
+  { id: 'fontshare', section: 'fontshare', label: 'Fontshare', description: 'Catalogo online' },
+  { id: 'nerd-fonts', section: 'nerd-fonts', label: 'Nerd Fonts', description: 'Catalogo online' },
+  { id: 'settings', section: 'settings', label: 'Impostazioni', description: 'Percorsi e scansione' },
 ];
-const CATEGORIES: { value: FontCategory; label: string }[] = [
-  { value: 'all', label: 'Tutte le categorie' },
-  { value: 'sans-serif', label: 'Sans serif' },
-  { value: 'serif', label: 'Serif' },
-  { value: 'display', label: 'Display' },
-  { value: 'monospace', label: 'Monospace' },
-];
+
 
 interface Notice {
   message: string;
@@ -46,24 +52,18 @@ interface PreviewResource {
   familyName: string;
 }
 
-function previewConcurrencyLimit(): number {
-  const cores = typeof navigator === 'undefined' ? 4 : navigator.hardwareConcurrency || 4;
-  if (cores <= 2) return 1;
-  if (cores <= 6) return 2;
-  if (cores <= 12) return 3;
-  return 4;
-}
-
 export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
   const [snapshot, setSnapshot] = useState<StartupSnapshot | null>(null);
   const [fontPage, setFontPage] = useState<FontPage | null>(null);
+  const [installedFonts, setInstalledFonts] = useState<FontItem[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [googleCatalog, setGoogleCatalog] = useState<CatalogSnapshot | null>(null);
   const [tab, setTab] = useState<LibraryTab>('local');
+  const [activeSection, setActiveSection] = useState<AppSection>('library');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<FontCategory>('all');
-  const [googleCategory, setGoogleCategory] = useState('all');
-  const [googleViewport, setGoogleViewport] = useState({ top: 0, height: GOOGLE_VIEWPORT_FALLBACK, velocity: 0 });
+  const [googleCategory, setGoogleCategory] = useState<FontCategory>('all');
+  const [googleViewport, setGoogleViewport] = useState({ top: 0, height: GOOGLE_VIEWPORT_FALLBACK });
   const [collectionId, setCollectionId] = useState<number | null>(null);
   const [selectedFontId, setSelectedFontId] = useState<string | null>(null);
   const [selectedGoogleId, setSelectedGoogleId] = useState<string | null>(null);
@@ -77,13 +77,14 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [operation, setOperation] = useState<string | null>(null);
   const [collectionName, setCollectionName] = useState('');
-  const [pendingFamily, setPendingFamily] = useState<GoogleFontCatalogItem | null>(null);
+
   const [notice, setNotice] = useState<Notice | null>(null);
   const [draggingFiles, setDraggingFiles] = useState(false);
   const previewResource = useRef<PreviewResource | null>(null);
   const fontListRef = useRef<HTMLDivElement | null>(null);
-  const previousGoogleScroll = useRef({ top: 0, at: 0 });
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const fontRequestId = useRef(0);
+  const pendingSelection = useRef<string | null>(null);
   const skipFirstQuery = useRef(true);
   const appReady = snapshot !== null;
   const selectedGoogle = useMemo(
@@ -92,28 +93,32 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
   );
 
   const refreshFonts = useCallback(async () => {
+    const requestId = ++fontRequestId.current;
     const result = await listAllFonts(api, {
       tab,
       search,
       category: tab === 'google' ? 'all' : category,
       collectionId: tab === 'local' ? collectionId : null,
     });
+    if (requestId !== fontRequestId.current) return;
+    const preferredId = pendingSelection.current ?? selectedFontId;
+    const validSelectedId = preferredId && result.items.some((font) => font.id === preferredId)
+      ? preferredId
+      : result.items[0]?.id ?? null;
+    pendingSelection.current = null;
+    setSelectedFontId(validSelectedId);
     setFontPage(result);
-    setSelectedFontId((current) =>
-      result.items.some((font) => font.id === current) ? current : (result.items[0]?.id ?? null),
-    );
     setLoading(false);
-  }, [api, category, collectionId, search, tab]);
+  }, [api, category, collectionId, search, selectedFontId, tab]);
 
   const refreshActiveCount = useCallback(async () => {
-    const active = await api.listFonts({
+    const active = await listAllFonts(api, {
       tab: 'active',
       search: '',
       category: 'all',
       collectionId: null,
-      page: 0,
-      pageSize: 1,
     });
+    setInstalledFonts(active.items);
     setSnapshot((current) => current && { ...current, activeCount: active.total });
   }, [api]);
 
@@ -142,7 +147,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
         setDraggingFiles(false);
         const archives = [...new Set(event.payload.paths.filter((path) => path.toLocaleLowerCase().endsWith('.zip')))];
         if (!archives.length) {
-          setNotice({ message: 'Trascina un archivio .zip contenente font TTF o OTF.', kind: 'info' });
+          setNotice({ message: 'Trascina un archivio ZIP con font TTF o OTF.', kind: 'info' });
           return;
         }
 
@@ -217,6 +222,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
         if (!mounted) return;
         setSnapshot(initial);
         setFontPage(initial.fonts);
+        setInstalledFonts(initial.fonts.items.filter((font) => font.isActive));
         setCollections(initial.collections);
         setGoogleCatalog(initial.googleCatalog);
         setSelectedFontId(initial.fonts.items[0]?.id ?? null);
@@ -270,11 +276,12 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
       skipFirstQuery.current = false;
       return;
     }
+    const requestId = ++fontRequestId.current;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setLoading(true);
       void refreshFonts().catch((error: unknown) => {
-        if (!cancelled) {
+        if (!cancelled && requestId === fontRequestId.current) {
           setLoading(false);
           setNotice({ message: errorMessage(error), kind: 'error' });
         }
@@ -283,6 +290,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      fontRequestId.current += 1;
     };
   }, [appReady, category, collectionId, refreshFonts, tab]);
 
@@ -340,7 +348,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
     const observed = new Set<HTMLElement>();
     const inFlight = new Map<HTMLElement, { key: string; resource: React.MutableRefObject<PreviewResource | null> }>();
     const resources = new Map<string, React.MutableRefObject<PreviewResource | null>>();
-    const queue = new AdaptivePreviewQueue({ maxConcurrency: previewConcurrencyLimit() });
+    const queue = new PreviewQueue({ maxConcurrency: PREVIEW_CONCURRENCY });
     const previewKey = (element: HTMLElement) => {
       const fontId = element.dataset.fontPreviewId;
       if (fontId) return `local:${fontId}`;
@@ -508,14 +516,11 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
     const needle = search.trim().toLocaleLowerCase();
     return (googleCatalog?.items ?? []).filter((item) =>
       item.family.toLocaleLowerCase().includes(needle)
-      && (googleCategory === 'all' || item.category === googleCategory),
+      && (googleCategory === 'all' || normalizeCategory(item.category) === googleCategory),
     );
   }, [googleCatalog, googleCategory, search]);
-  const googleCategories = useMemo(
-    () => [...new Set((googleCatalog?.items ?? []).map((item) => item.category).filter(Boolean))].sort(),
-    [googleCatalog],
-  );
-  const googleOverscan = Math.max(2, Math.min(8, Math.ceil(googleViewport.velocity * 250 / GOOGLE_ROW_HEIGHT)));
+
+  const googleOverscan = 3;
   const googleWindow = useMemo(() => {
     const start = Math.max(0, Math.floor(googleViewport.top / GOOGLE_ROW_HEIGHT) - googleOverscan);
     const end = Math.min(
@@ -526,22 +531,23 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
   }, [filteredCatalog, googleOverscan, googleViewport.height, googleViewport.top]);
   const handleGoogleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     const list = event.currentTarget;
-    const at = performance.now();
-    const previous = previousGoogleScroll.current;
-    const elapsed = Math.max(1, at - previous.at);
-    const velocity = previous.at === 0 ? 0 : Math.abs(list.scrollTop - previous.top) / elapsed;
-    previousGoogleScroll.current = { top: list.scrollTop, at };
-    setGoogleViewport({ top: list.scrollTop, height: list.clientHeight || GOOGLE_VIEWPORT_FALLBACK, velocity });
+    setGoogleViewport({ top: list.scrollTop, height: list.clientHeight || GOOGLE_VIEWPORT_FALLBACK });
   }, []);
   useEffect(() => {
     if (tab !== 'google') return;
     if (fontListRef.current) fontListRef.current.scrollTop = 0;
-    previousGoogleScroll.current = { top: 0, at: 0 };
-    setGoogleViewport({ top: 0, height: fontListRef.current?.clientHeight || GOOGLE_VIEWPORT_FALLBACK, velocity: 0 });
+    setGoogleViewport({ top: 0, height: fontListRef.current?.clientHeight || GOOGLE_VIEWPORT_FALLBACK });
   }, [googleCategory, search, tab]);
-  const title = collectionId !== null
-    ? collections.find((item) => item.id === collectionId)?.name ?? 'Collezione'
-    : NAVIGATION.find((item) => item.tab === tab)?.label ?? 'Libreria locale';
+  const title = activeSection !== 'library'
+    ? NAVIGATION.find((item) => item.section === activeSection)?.label ?? 'Impostazioni'
+    : collectionId !== null
+      ? collections.find((item) => item.id === collectionId)?.name ?? 'Collezione'
+      : NAVIGATION.find((item) => item.tab === tab)?.label ?? 'Libreria locale';
+
+  useEffect(() => {
+    if (activeSection !== 'library' || tab === 'google') return;
+    fontListRef.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeSection, tab, fontPage, selectedFontId]);
 
   async function handleFavorite(font: FontItem) {
     setOperation(`favorite:${font.id}`);
@@ -674,16 +680,13 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
     }
   }
 
-  async function handleInstallVariant() {
-    if (!selectedGoogle || !googleVariantId) return;
+  async function handleInstallVariant(family: GoogleFontCatalogItem = selectedGoogle!, variantId: string = googleVariantId) {
+    if (!family || !variantId) return;
     setOperation('google-install');
     try {
-      const font = await api.installGoogleVariant(selectedGoogle.id, googleVariantId);
-      setCollectionId(null);
-      setSearch('');
-      setSelectedFontId(font.id);
-      setTab('local');
-      setNotice({ message: `${font.family} ${font.subfamily} aggiunto alla Libreria locale.`, kind: 'success' });
+      const font = await api.installGoogleVariant(family.id, variantId);
+      await api.setFontActive(font.id, true);
+      handleRemoteInstalled([font.id], `${font.family} ${font.subfamily} installato su Windows.`, false);
     } catch (error) {
       setNotice({ message: errorMessage(error), kind: 'error' });
     } finally {
@@ -691,28 +694,30 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
     }
   }
 
-  async function handleDownloadFamily() {
-    if (!pendingFamily) return;
-    setOperation('google-family');
-    try {
-      const report = await api.downloadGoogleFamily(pendingFamily.id);
-      if (report.installed.length) {
-        setCollectionId(null);
-        setSearch('');
-        setSelectedFontId(report.installed[0].id);
-        setTab('local');
-      }
-      setNotice({
-        message: `${pendingFamily.family}: ${report.installed.length} varianti aggiunte alla Libreria locale, ${report.failed.length} non riuscite.`,
-        kind: report.failed.length ? 'error' : 'success',
-      });
-      setPendingFamily(null);
-      if (tab === 'google') await refreshFonts();
-    } catch (error) {
+  function handleRemoteInstalled(fontIds: string[], message: string, failed: boolean) {
+    const targetId = fontIds[0] ?? null;
+    pendingSelection.current = targetId;
+    setActiveSection('library');
+    setTab('local');
+    setCollectionId(null);
+    setSearch('');
+    setCategory('all');
+    setSelectedFontId(targetId);
+    setLoading(true);
+    const requestId = ++fontRequestId.current;
+    void listAllFonts(api, { tab: 'local', search: '', category: 'all', collectionId: null }).then((result) => {
+      if (requestId !== fontRequestId.current) return;
+      const targetIndex = targetId ? result.items.findIndex((font) => font.id === targetId) : -1;
+      setFontPage(result);
+      setSelectedFontId(targetIndex >= 0 ? targetId : result.items[0]?.id ?? null);
+      setLoading(false);
+    }).catch((error: unknown) => {
+      if (requestId !== fontRequestId.current) return;
+      setLoading(false);
       setNotice({ message: errorMessage(error), kind: 'error' });
-    } finally {
-      setOperation(null);
-    }
+    });
+    setNotice({ message, kind: failed ? 'error' : 'success' });
+    void refreshActiveCountRef.current().catch((error: unknown) => setNotice({ message: errorMessage(error), kind: 'error' }));
   }
 
   if (!snapshot && loading) {
@@ -735,27 +740,38 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
         </div>
 
         <div className="sidebar-label">Libreria</div>
-        <nav className="primary-nav" aria-label="Sezioni libreria">
-          {NAVIGATION.map((item) => (
-            <button
-              aria-current={tab === item.tab && collectionId === null ? 'page' : undefined}
-              className={`nav-item ${tab === item.tab && collectionId === null ? 'is-current' : ''}`}
-              key={item.tab}
-              onClick={() => {
-                setTab(item.tab);
-                setCollectionId(null);
-              }}
-              type="button"
-            >
-              <span>{item.label}</span>
-              <span className="nav-description">{item.description}</span>
-            </button>
-          ))}
+        <nav className="primary-nav" aria-label="Sezioni libreria e cataloghi">
+          {NAVIGATION.map((item) => {
+            const current = item.tab
+              ? activeSection === 'library' && tab === item.tab && collectionId === null
+              : activeSection === item.section;
+            return (
+              <button
+                aria-current={current ? 'page' : undefined}
+                className={`nav-item ${current ? 'is-current' : ''}`}
+                key={item.id}
+                onClick={() => {
+                  setCollectionId(null);
+                  if (item.tab) {
+                    setActiveSection('library');
+                    setTab(item.tab);
+                  } else {
+                    setTab('local');
+                    setActiveSection(item.section);
+                  }
+                }}
+                type="button"
+              >
+                <span>{item.label}</span>
+                <span className="nav-description">{item.description}</span>
+              </button>
+            );
+          })}
         </nav>
 
         <div className="collection-heading">
           <span className="sidebar-label">Collezioni</span>
-          <span className="collection-total">{collections.length.toString().padStart(2, '0')}</span>
+          <span className="collection-total">{collections.length}</span>
         </div>
         <div className="collection-list">
           {collections.map((collection) => (
@@ -764,6 +780,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
               className={`collection-link ${collectionId === collection.id ? 'is-current' : ''}`}
               key={collection.id}
               onClick={() => {
+                setActiveSection('library');
                 setTab('local');
                 setCollectionId(collection.id);
               }}
@@ -802,11 +819,12 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
           </div>
         </header>
 
+        {activeSection === 'library' ? (
         <div className="workspace">
           <section className="library-panel" aria-label={title}>
             <div className="page-heading">
               <div>
-                <p className="eyebrow">CAMPIONI TIPOGRAFICI <span>·</span> 01</p>
+                <p className="eyebrow">CAMPIONI TIPOGRAFICI</p>
                 <h1>{tab === 'google' ? 'Trova il tuo prossimo carattere.' : title}</h1>
                 <p className="page-description">
                   {tab === 'google'
@@ -815,11 +833,11 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                       ? 'Gestisci i font installati da questa libreria.'
                       : collectionId !== null
                         ? 'Una selezione curata, pronta per il prossimo progetto.'
-                        : 'Cerca e organizza i font locali e quelli scaricati da Google Fonts.'}
+                        : 'Cerca e organizza i font locali e quelli scaricati dai cataloghi cloud.'}
                 </p>
               </div>
               <div className="page-total" aria-live="polite">
-                <span className="page-total-number">{tab === 'google' ? filteredCatalog.length : fontPage?.total ?? 0}</span>
+          <div className="page-total-number">{tab === 'google' ? filteredCatalog.length : fontPage?.total ?? 0}</div>
                 <span>{tab === 'google' ? 'famiglie' : 'font'}</span>
               </div>
             </div>
@@ -840,18 +858,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                 />
                 <kbd className="kbd search-shortcut">Ctrl K</kbd>
               </label>
-              <select
-                aria-label="Categoria font"
-                className="select select-bordered category-select"
-                onChange={(event) => tab === 'google'
-                  ? setGoogleCategory(event.target.value)
-                  : setCategory(event.target.value as FontCategory)}
-                value={tab === 'google' ? googleCategory : category}
-              >
-                {tab === 'google'
-                  ? <><option value="all">Tutte le categorie</option>{googleCategories.map((item) => <option key={item} value={item}>{item.replaceAll('-', ' ')}</option>)}</>
-                  : CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+
               {tab === 'google' && (
                 <button className="btn btn-outline catalog-refresh" disabled={catalogBusy} onClick={handleRefreshCatalog} type="button">
                   {catalogBusy ? <span className="loading loading-spinner loading-xs" /> : '↻'}
@@ -860,6 +867,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
               )}
             </div>
 
+            <CategoryFilter value={tab === 'google' ? googleCategory : category} onChange={tab === 'google' ? setGoogleCategory : setCategory} />
             <div className="specimen-controls">
               <label className="sample-input-wrap">
                 <span className="control-label">Testo di prova</span>
@@ -879,6 +887,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                   {googleWindow.items.map((family, index) => {
                     const variantId = family.defVariant || family.variants[0] || '';
                     const catalogIndex = googleWindow.start + index;
+                    const installed = installedFonts.some((font) => font.isActive && font.source === 'google' && font.sourceFamilyId === family.id && font.sourceVariantId === variantId);
                     return (
                       <div className="google-font-row" key={family.id} style={{ height: `${GOOGLE_ROW_HEIGHT}px`, top: `${catalogIndex * GOOGLE_ROW_HEIGHT}px` }}>
                         <button
@@ -887,10 +896,9 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                           onClick={() => setSelectedGoogleId(family.id)}
                           type="button"
                         >
-                          <span className="font-row-number">{String(catalogIndex + 1).padStart(2, '0')}</span>
                           <span className="font-row-main">
                             <span className="font-row-family">{family.family}</span>
-                            <span className="font-row-meta">{family.category.replaceAll('-', ' ')} <i>·</i> {family.variants.length} varianti</span>
+                            <span className="font-row-meta">{categoryLabel(family.category)} <i>·</i> {family.variants.length} varianti</span>
                             <span
                               className="font-row-sample"
                               data-google-preview-id={family.id}
@@ -901,32 +909,23 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                           </span>
                           <span className="font-row-state"><span className="badge badge-outline">{family.variants.length} stili</span></span>
                         </button>
-                        <button className="btn btn-ghost btn-xs family-download" disabled={operation === 'google-family'} onClick={() => setPendingFamily(family)} type="button">Scarica famiglia</button>
+                    <button aria-label={`${installed ? 'Installato' : 'Installa'} ${family.family}`} className="btn btn-ghost btn-xs family-download" disabled={operation === 'google-install' || installedFonts.some((font) => font.isActive && font.source === 'google' && font.sourceFamilyId === family.id && font.sourceVariantId === variantId)} onClick={() => { setSelectedGoogleId(family.id); setGoogleVariantId(variantId); void handleInstallVariant(family, variantId); }} type="button">{installedFonts.some((font) => font.isActive && font.source === 'google' && font.sourceFamilyId === family.id && font.sourceVariantId === variantId) ? 'Installato' : operation === 'google-install' ? 'Installazione…' : 'Installa'}</button>
                       </div>
                     );
                   })}
                   </div>
                   {!googleCatalog?.items.length && !catalogBusy && (
                     <div className="empty-state">
-                      <span className="empty-index">G / 00</span>
+                      <span className="empty-index">G</span>
                       <h2>Il catalogo è ancora vuoto.</h2>
                       <p>Carica il catalogo Google Fonts per confrontare i campioni e scaricare le varianti nella Libreria locale.</p>
                       <button className="btn btn-primary" onClick={handleRefreshCatalog} type="button">Carica catalogo</button>
                     </div>
                   )}
                   {!!googleCatalog?.items.length && !filteredCatalog.length && (
-                    <div className="empty-state"><span className="empty-index">G / 00</span><h2>Nessuna famiglia trovata.</h2><p>Modifica la ricerca o scegli un’altra categoria.</p></div>
+                    <div className="empty-state"><span className="empty-index">G</span><h2>Nessuna famiglia trovata.</h2><p>Modifica la ricerca o scegli un’altra categoria.</p></div>
                   )}
-                  {pendingFamily && (
-                    <div className="family-confirm" role="group" aria-label={`Conferma download ${pendingFamily.family}`}>
-                      <div>
-                        <strong>Scaricare “{pendingFamily.family}”?</strong>
-                        <p>{pendingFamily.variants.length} varianti verranno aggiunte alla Libreria locale.</p>
-                      </div>
-                      <button className="btn btn-primary btn-sm" disabled={operation === 'google-family'} onClick={handleDownloadFamily} type="button">Conferma</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setPendingFamily(null)} type="button">Annulla</button>
-                    </div>
-                  )}
+
                 </div>
               </div>
             ) : (
@@ -934,14 +933,14 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                 {loading && <div className="list-loading"><span className="loading loading-spinner loading-sm" /> Aggiornamento elenco…</div>}
                 {!loading && !fontPage?.items.length && (
                   <div className="empty-state">
-                    <span className="empty-index">L / 00</span>
+                    <span className="empty-index">L</span>
                     <h2>Qui non c’è ancora niente.</h2>
                     <p>Aggiungi una cartella di font oppure modifica la ricerca.</p>
                     <button className="btn btn-primary" onClick={handleScanFolder} type="button">Aggiungi cartella</button>
                   </div>
                 )}
                 <div className="font-list" aria-label="Risultati font" ref={fontListRef}>
-                  {fontPage?.items.map((font, index) => (
+                  {fontPage?.items.map((font) => (
                     <button
                       aria-pressed={selectedFontId === font.id}
                       className={`font-row ${selectedFontId === font.id ? 'is-selected' : ''}`}
@@ -949,13 +948,14 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                       onClick={() => setSelectedFontId(font.id)}
                       type="button"
                     >
-                      <span className="font-row-number">{String(index + 1).padStart(2, '0')}</span>
+
                       <span className="font-row-main">
                         <span className="font-row-family">{font.family}</span>
                         <span className="font-row-meta">{font.subfamily} <i>·</i> {font.weight}{font.isItalic ? ' Italic' : ''}</span>
                         <span className="font-row-sample" data-font-preview-id={font.id} style={{ fontSize: `${Math.min(previewSize, 38)}px` }}>{previewText || PREVIEW_SAMPLE}</span>
                       </span>
                       <span className="font-row-state">
+                        {font.isVariable && <span className="badge badge-outline">Variabile</span>}
                         {font.isInstalled && <span className="badge badge-success badge-outline">Installato</span>}
                         {font.isFavorite && <span className="favorite-mark" aria-label="Preferito">★</span>}
                         {font.missingOnDisk && <span className="badge badge-error badge-outline">File mancante</span>}
@@ -1001,6 +1001,11 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
             ) : <InspectorEmpty title="Il prossimo carattere" text="Seleziona un font per aprire il campione e i controlli." />}
           </aside>
         </div>
+      ) : activeSection === 'settings' ? (
+          <SettingsView api={api} onLibraryChanged={() => Promise.all([refreshFonts(), refreshActiveCount()]).then(() => undefined)} />
+        ) : (
+          <CloudCatalogView api={api} installedFonts={installedFonts} onInstalled={handleRemoteInstalled} provider={activeSection as Exclude<RemoteFontProvider, 'google'>} />
+        )}
         <footer className="statusbar">
           <span>{snapshot?.dataDirectory ?? 'Database locale'}</span>
           <span>Fontations · SQLite · Tauri</span>
@@ -1052,7 +1057,7 @@ function FontInspector({
   const isBusy = busy?.endsWith(font.id) ?? false;
   return (
     <div className="inspector-content">
-      <div className="inspector-kicker"><span>SPECIMEN</span><span>{font.source === 'google' ? 'GOOGLE' : 'LOCAL'}</span></div>
+      <div className="inspector-kicker"><span>SPECIMEN</span><span>{sourceLabel(font.source)}</span></div>
       <div className="inspector-title-block">
         <p className="eyebrow">{font.category === 'unknown' ? 'UNCLASSIFIED' : font.category.toUpperCase()}</p>
         <h2>{font.family}</h2>
@@ -1079,14 +1084,14 @@ function FontInspector({
         </select>
       </div>
       <div className="inspector-section">
-        <div className="section-rule"><span>UTILIZZO</span><span>02</span></div>
+        <div className="section-rule"><span>UTILIZZO</span></div>
         <div className="snippet-actions">
           <button className="btn btn-ghost btn-sm" disabled={busy === 'copy:css'} onClick={() => onCopy('css')} type="button">Copia CSS <span aria-hidden="true">↗</span></button>
           <button className="btn btn-ghost btn-sm" disabled={busy === 'copy:nextjs'} onClick={() => onCopy('nextjs')} type="button">Copia Next.js <span aria-hidden="true">↗</span></button>
         </div>
       </div>
       <div className="inspector-section font-facts">
-        <div className="section-rule"><span>DETTAGLI</span><span>03</span></div>
+        <div className="section-rule"><span>DETTAGLI</span></div>
         <dl>
           <div><dt>Stile</dt><dd>{font.fullName}</dd></div>
           <div><dt>Dimensione</dt><dd>{formatBytes(font.fileSize)}</dd></div>
@@ -1125,7 +1130,7 @@ function GoogleInspector({
     <div className="inspector-content">
       <div className="inspector-kicker"><span>GOOGLE FONTS</span><span>{family.category.toUpperCase()}</span></div>
       <div className="inspector-title-block">
-        <p className="eyebrow">FAMILY / {String(family.variants.length).padStart(2, '0')} VARIANTS</p>
+        <p className="eyebrow">FAMILY <span>·</span> {family.variants.length} VARIANTS</p>
         <h2>{family.family}</h2>
         <p className="font-subtitle">Open-source type family</p>
       </div>
@@ -1142,23 +1147,23 @@ function GoogleInspector({
       </div>
       <div className="inspector-actions google-actions">
         {previewState === 'failed' && <button className="btn btn-outline" disabled={!variantId || busy === 'google-preview'} onClick={onPreview} type="button">{busy === 'google-preview' ? 'Caricamento…' : 'Riprova anteprima'}</button>}
-        <button className="btn btn-primary action-primary" disabled={!variantId || busy === 'google-install'} onClick={onInstall} type="button">{busy === 'google-install' ? 'Download…' : 'Scarica variante'}</button>
+        <button className="btn btn-primary action-primary" disabled={!variantId || busy === 'google-install'} onClick={onInstall} type="button">{busy === 'google-install' ? 'Installazione…' : 'Installa'}</button>
       </div>
       <div className="inspector-section font-facts">
-        <div className="section-rule"><span>DETTAGLI</span><span>03</span></div>
+        <div className="section-rule"><span>DETTAGLI</span></div>
         <dl>
           <div><dt>Varianti</dt><dd>{family.variants.length}</dd></div>
-          <div><dt>Subsets</dt><dd>{family.subsets.slice(0, 3).join(', ') || '—'}</dd></div>
-          <div><dt>Popolarità</dt><dd>#{family.popularity || '—'}</dd></div>
+          <div><dt>Subsets</dt><dd>{family.subsets.slice(0, 3).join(', ') || 'Non disponibili'}</dd></div>
+          <div><dt>Popolarità</dt><dd>{family.popularity ? `#${family.popularity}` : 'Non disponibile'}</dd></div>
         </dl>
       </div>
-      <p className="inspector-footnote">Dopo il download, la variante compare nella Libreria locale. Il download non attiva il font su Windows.</p>
+        <p className="inspector-footnote">Installa la variante selezionata per il tuo utente Windows.</p>
     </div>
   );
 }
 
 function InspectorEmpty({ title, text }: { title: string; text: string }) {
-  return <div className="inspector-empty"><span className="empty-index">OFM / —</span><h2>{title}</h2><p>{text}</p></div>;
+  return <div className="inspector-empty"><span className="empty-index">OFM</span><h2>{title}</h2><p>{text}</p></div>;
 }
 
 async function listAllFonts(
@@ -1230,7 +1235,18 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function sourceLabel(source: FontItem['source']): string {
+  switch (source) {
+    case 'google': return 'GOOGLE FONTS';
+    case 'fontsource': return 'FONTSOURCE';
+    case 'fontshare': return 'FONTSHARE';
+    case 'nerd-fonts': return 'NERD FONTS';
+    default: return 'LOCALE';
+  }
+}
+
 function variantLabel(value: string): string {
+
   if (value === 'regular') return 'Regular · 400';
   if (value === 'italic') return 'Italic · 400';
   const weight = value.match(/^([1-9]00)(italic)?$/);
