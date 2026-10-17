@@ -129,6 +129,22 @@ afterEach(() => {
 });
 
 describe('font manager workbench', () => {
+  it('offers exactly the four primary sections and opens global catalog browsing', async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    render(<App api={api} />);
+    await screen.findByRole('heading', { name: 'Fixture Serif' });
+    const nav = screen.getByRole('navigation', { name: 'Sezioni libreria e cataloghi' });
+    expect(Array.from(nav.querySelectorAll('button')).map((button) => button.querySelector('span')?.textContent)).toEqual(['Locali', 'Ricerca Globale', 'Ispirazione', 'Cataloghi vari']);
+    await user.click(screen.getByRole('button', { name: /^Ricerca Globale/ }));
+    expect(screen.getByRole('heading', { name: 'Ricerca Globale' })).toBeInTheDocument();
+    await waitFor(() => {
+      for (const provider of ['google', 'fontsource-extra', 'fontshare', 'nerd-fonts']) {
+        expect(api.loadCachedRemoteCatalog).toHaveBeenCalledWith(provider);
+      }
+    });
+  });
+
   it('imports a dropped ZIP and returns to the local library', async () => {
     const api = makeApi();
     const importZipFont = vi.fn().mockResolvedValue({
@@ -152,7 +168,7 @@ describe('font manager workbench', () => {
 
     await waitFor(() => expect(importZipFont).toHaveBeenCalledWith('C:/Users/test/Family.zip'));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/1 nuovi/));
-    expect(screen.getByRole('button', { name: /Libreria locale/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^Locali/ })).toHaveAttribute('aria-current', 'page');
   });
 
   it('lets the user mark the selected font as a favorite', async () => {
@@ -216,7 +232,7 @@ describe('font manager workbench', () => {
 
     render(<App api={api} />);
     await screen.findByRole('heading', { name: 'Fixture Serif' });
-    await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
 
     await waitFor(() => {
       expect(api.previewGoogleVariant).toHaveBeenCalledWith('fraunces', 'regular');
@@ -248,7 +264,7 @@ describe('font manager workbench', () => {
 
     render(<App api={api} />);
     await screen.findByRole('heading', { name: 'Fixture Serif' });
-    await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
 
     const catalogList = document.querySelector('.google-font-list') as HTMLDivElement;
     await waitFor(() => expect(catalogList.querySelectorAll('.google-font-row').length).toBeGreaterThan(0));
@@ -302,13 +318,13 @@ describe('font manager workbench', () => {
 
     render(<App api={api} />);
     await screen.findByRole('heading', { name: 'Fixture Serif' });
-    await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
     await screen.findByRole('heading', { name: 'Google Display' });
     await user.click(await screen.findByRole('button', { name: 'Installa Google Display' }));
 
     await waitFor(() => expect(api.installGoogleVariant).toHaveBeenCalledWith('google-display', 'regular'));
     expect(await screen.findByRole('heading', { name: 'Google Display' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Libreria locale/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^Locali/ })).toHaveAttribute('aria-current', 'page');
     expect(api.listFonts).toHaveBeenCalledWith(expect.objectContaining({ tab: 'local' }));
     expect(document.querySelector('.downloaded-section')).not.toBeInTheDocument();
   });
@@ -344,11 +360,11 @@ describe('font manager workbench', () => {
 
     render(<App api={api} />);
     await screen.findByRole('heading', { name: 'Fixture Serif' });
-    await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
     await user.click(await screen.findByRole('button', { name: 'Installa Google Display' }));
 
     await waitFor(() => expect(api.setFontActive).toHaveBeenCalledWith('google-family-font', true));
-    expect(screen.getByRole('button', { name: /Libreria locale/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^Locali/ })).toHaveAttribute('aria-current', 'page');
     expect(await screen.findByRole('button', { name: /Google Display/ })).toBeInTheDocument();
   });
 
@@ -407,10 +423,10 @@ describe('font manager workbench', () => {
     render(<App api={api} />);
 
     await screen.findByRole('heading', { name: 'Fixture Sans' });
-    await user.click(screen.getByRole('button', { name: /Google Fonts/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
     await waitFor(() => expect(finishGoogle).toBeTypeOf('function'));
 
-    await user.click(screen.getByRole('button', { name: /Libreria locale/ }));
+    await user.click(screen.getByRole('button', { name: /^Locali/ }));
     await screen.findByRole('heading', { name: 'Fixture Sans' });
 
     finishGoogle({ ...initial.fonts, items: [fixture] });
@@ -491,7 +507,8 @@ describe('font manager workbench', () => {
     render(<App api={api} />);
 
     await screen.findByRole('heading', { name: 'Fixture Serif' });
-    await user.click(screen.getByRole('button', { name: /Fontshare/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
+    await user.click(screen.getByRole('button', { name: 'Fontshare' }));
 
     expect(await screen.findByRole('heading', { name: 'Fontshare' })).toBeInTheDocument();
     expect(api.loadCachedRemoteCatalog).toHaveBeenCalledWith('fontshare');
@@ -588,7 +605,8 @@ describe('font manager workbench', () => {
     render(<App api={api} />);
 
     await screen.findByRole('heading', { name: 'Fixture Serif' });
-    await user.click(screen.getByRole('button', { name: /Fontsource Extra/ }));
+    await user.click(screen.getByRole('button', { name: /^Cataloghi vari/ }));
+    await user.click(screen.getByRole('button', { name: 'Fontsource Extra' }));
     await user.click(await screen.findByRole('button', { name: 'Installa Cloud Fixture' }));
 
     expect(await screen.findByRole('heading', { name: 'Cloud Fixture' })).toBeInTheDocument();

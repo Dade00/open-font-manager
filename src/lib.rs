@@ -3,6 +3,7 @@ pub mod db;
 pub mod errors;
 pub mod font_scanner;
 pub mod google_fonts;
+pub mod inspiration;
 pub mod installed_fonts;
 pub mod models;
 pub mod paths;

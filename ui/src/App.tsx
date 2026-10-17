@@ -8,6 +8,9 @@ import type { FontManagerApi } from './api';
 import { PreviewQueue } from './adaptivePreviewQueue';
 import { CloudCatalogView } from './CloudCatalogView';
 import { SettingsView } from './SettingsView';
+import { GlobalSearchView } from './GlobalSearchView';
+import { InspirationView } from './InspirationView';
+import type { InspirationFontRef } from './inspirationTypes';
 import { CategoryFilter } from './CategoryFilter';
 import { categoryLabel, normalizeCategory } from './categories';
 import type {
@@ -28,16 +31,18 @@ const PREVIEW_SAMPLE = 'Sphinx of black quartz, judge my vow.';
 const GOOGLE_ROW_HEIGHT = 108;
 const GOOGLE_VIEWPORT_FALLBACK = 520;
 const PREVIEW_CONCURRENCY = 3;
-type AppSection = 'library' | 'fontsource-extra' | 'fontshare' | 'nerd-fonts' | 'settings';
+type AppSection = 'library' | 'search' | 'inspiration' | 'catalogs' | 'settings';
 type NavigationItem = { id: string; section: AppSection; label: string; description: string; tab?: LibraryTab };
 const NAVIGATION: NavigationItem[] = [
-  { id: 'local', section: 'library', tab: 'local', label: 'Libreria locale', description: 'Font sul dispositivo' },
-  { id: 'favorites', section: 'library', tab: 'favorites', label: 'Preferiti', description: 'La tua selezione' },
-  { id: 'google', section: 'library', tab: 'google', label: 'Google Fonts', description: 'Catalogo online' },
-  { id: 'fontsource-extra', section: 'fontsource-extra', label: 'Fontsource Extra', description: 'Catalogo online' },
-  { id: 'fontshare', section: 'fontshare', label: 'Fontshare', description: 'Catalogo online' },
-  { id: 'nerd-fonts', section: 'nerd-fonts', label: 'Nerd Fonts', description: 'Catalogo online' },
-  { id: 'settings', section: 'settings', label: 'Impostazioni', description: 'Percorsi e scansione' },
+  { id: 'local', section: 'library', tab: 'local', label: 'Locali', description: 'Font sul dispositivo' },
+  { id: 'search', section: 'search', label: 'Ricerca Globale', description: 'Tutti i cataloghi' },
+  { id: 'inspiration', section: 'inspiration', label: 'Ispirazione', description: 'Abbinamenti e moodboard' },
+  { id: 'catalogs', section: 'catalogs', label: 'Cataloghi vari', description: 'Esplora per provenienza' },
+];
+
+const CATALOGS: { id: RemoteFontProvider; label: string }[] = [
+  { id: 'google', label: 'Google Fonts' }, { id: 'fontsource-extra', label: 'Fontsource Extra' },
+  { id: 'fontshare', label: 'Fontshare' }, { id: 'nerd-fonts', label: 'Nerd Fonts' },
 ];
 
 
@@ -60,6 +65,9 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
   const [googleCatalog, setGoogleCatalog] = useState<CatalogSnapshot | null>(null);
   const [tab, setTab] = useState<LibraryTab>('local');
   const [activeSection, setActiveSection] = useState<AppSection>('library');
+  const [catalogProvider, setCatalogProvider] = useState<RemoteFontProvider>('google');
+  const [inspirationSeed, setInspirationSeed] = useState<InspirationFontRef | null>(null);
+  const [inspirationDirty, setInspirationDirty] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<FontCategory>('all');
   const [googleCategory, setGoogleCategory] = useState<FontCategory>('all');
@@ -538,11 +546,33 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
     if (fontListRef.current) fontListRef.current.scrollTop = 0;
     setGoogleViewport({ top: 0, height: fontListRef.current?.clientHeight || GOOGLE_VIEWPORT_FALLBACK });
   }, [googleCategory, search, tab]);
-  const title = activeSection !== 'library'
+  const title = activeSection === 'catalogs'
+    ? CATALOGS.find((item) => item.id === catalogProvider)?.label ?? 'Cataloghi vari'
+    : activeSection !== 'library'
     ? NAVIGATION.find((item) => item.section === activeSection)?.label ?? 'Impostazioni'
     : collectionId !== null
       ? collections.find((item) => item.id === collectionId)?.name ?? 'Collezione'
-      : NAVIGATION.find((item) => item.tab === tab)?.label ?? 'Libreria locale';
+      : tab === 'favorites' ? 'Preferiti' : 'Libreria locale';
+
+  function tryFont(font: InspirationFontRef) {
+    setInspirationSeed(font);
+    setActiveSection('inspiration');
+    setTab('local');
+  }
+
+  function canLeaveInspiration() {
+    if (activeSection !== 'inspiration' || !inspirationDirty) return true;
+    if (!window.confirm('Ci sono modifiche non salvate in Ispirazione. Uscire senza salvarle?')) return false;
+    setInspirationDirty(false);
+    return true;
+  }
+
+  useEffect(() => {
+    if (!inspirationDirty) return;
+    const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, [inspirationDirty]);
 
   useEffect(() => {
     if (activeSection !== 'library' || tab === 'google') return;
@@ -743,7 +773,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
         <nav className="primary-nav" aria-label="Sezioni libreria e cataloghi">
           {NAVIGATION.map((item) => {
             const current = item.tab
-              ? activeSection === 'library' && tab === item.tab && collectionId === null
+              ? activeSection === 'library'
               : activeSection === item.section;
             return (
               <button
@@ -751,12 +781,13 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
                 className={`nav-item ${current ? 'is-current' : ''}`}
                 key={item.id}
                 onClick={() => {
+                  if (item.section !== activeSection && !canLeaveInspiration()) return;
                   setCollectionId(null);
                   if (item.tab) {
                     setActiveSection('library');
                     setTab(item.tab);
                   } else {
-                    setTab('local');
+                    setTab(item.section === 'catalogs' && catalogProvider === 'google' ? 'google' : 'local');
                     setActiveSection(item.section);
                   }
                 }}
@@ -769,6 +800,11 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
           })}
         </nav>
 
+        {activeSection === 'library' && <>
+        <div className="join my-3" aria-label="Viste locali">
+          <button className={`btn btn-sm join-item ${tab === 'local' && collectionId === null ? 'btn-active' : ''}`} onClick={() => { setTab('local'); setCollectionId(null); }} type="button">Tutti</button>
+          <button className={`btn btn-sm join-item ${tab === 'favorites' ? 'btn-active' : ''}`} onClick={() => { setTab('favorites'); setCollectionId(null); }} type="button">Preferiti</button>
+        </div>
         <div className="collection-heading">
           <span className="sidebar-label">Collezioni</span>
           <span className="collection-total">{collections.length}</span>
@@ -804,7 +840,9 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
           />
           <button aria-label="Crea collezione" className="btn btn-square btn-ghost collection-add" disabled={!collectionName.trim() || operation === 'collection'} type="submit">+</button>
         </form>
+        </>}
         <div className="sidebar-spacer" />
+        <button className={`nav-item ${activeSection === 'settings' ? 'is-current' : ''}`} aria-current={activeSection === 'settings' ? 'page' : undefined} onClick={() => { if (!canLeaveInspiration()) return; setActiveSection('settings'); setTab('local'); }} type="button">Impostazioni</button>
         <button className="btn btn-primary scan-button" disabled={operation === 'scan'} onClick={handleScanFolder} type="button">
           {operation === 'scan' ? 'Scansione…' : '＋  Aggiungi cartella'}
         </button>
@@ -819,7 +857,14 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
           </div>
         </header>
 
-        {activeSection === 'library' ? (
+        {activeSection === 'catalogs' && <div className="catalog-picker" role="group" aria-label="Scegli catalogo">
+          {CATALOGS.map((provider) => <button className={`btn btn-sm ${catalogProvider === provider.id ? 'btn-active' : 'btn-ghost'}`} aria-pressed={catalogProvider === provider.id} key={provider.id} onClick={() => { setCatalogProvider(provider.id); setTab(provider.id === 'google' ? 'google' : 'local'); }} type="button">{provider.label}</button>)}
+        </div>}
+        {activeSection === 'search' ? (
+          <GlobalSearchView api={api} installedFonts={installedFonts} onInstalled={handleRemoteInstalled} onTryFont={tryFont} />
+        ) : activeSection === 'inspiration' ? (
+          <InspirationView api={api} seedFont={inspirationSeed} onSeedConsumed={() => setInspirationSeed(null)} onDirtyChange={setInspirationDirty} onInstalled={(_ids, message, failed) => { setNotice({ message, kind: failed ? 'error' : 'success' }); void refreshActiveCount().catch((error: unknown) => setNotice({ message: errorMessage(error), kind: 'error' })); }} />
+        ) : activeSection === 'library' || (activeSection === 'catalogs' && catalogProvider === 'google') ? (
         <div className="workspace">
           <section className="library-panel" aria-label={title}>
             <div className="page-heading">
@@ -968,6 +1013,10 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
           </section>
 
           <aside className="inspector" aria-label="Dettagli font selezionato">
+            {(tab === 'google' ? selectedGoogle : currentFont) && <button className="btn btn-outline m-4" type="button" onClick={() => {
+              if (tab === 'google' && selectedGoogle) tryFont({ provider: 'google', familyId: selectedGoogle.id, variantId: googleVariantId || selectedGoogle.defVariant, localFontId: null, family: selectedGoogle.family, isVariable: null });
+              else if (currentFont) tryFont({ provider: 'local', familyId: currentFont.sourceFamilyId, variantId: currentFont.sourceVariantId ?? currentFont.subfamily, localFontId: currentFont.id, family: currentFont.family, isVariable: currentFont.isVariable });
+            }}>Prova in Ispirazione</button>}
             {tab === 'google' ? (
               selectedGoogle ? (
                 <GoogleInspector
@@ -1004,7 +1053,7 @@ export function App({ api = fontManagerApi }: { api?: FontManagerApi }) {
       ) : activeSection === 'settings' ? (
           <SettingsView api={api} onLibraryChanged={() => Promise.all([refreshFonts(), refreshActiveCount()]).then(() => undefined)} />
         ) : (
-          <CloudCatalogView api={api} installedFonts={installedFonts} onInstalled={handleRemoteInstalled} provider={activeSection as Exclude<RemoteFontProvider, 'google'>} />
+          <CloudCatalogView api={api} installedFonts={installedFonts} onInstalled={handleRemoteInstalled} onTryFont={tryFont} provider={catalogProvider as Exclude<RemoteFontProvider, 'google'>} />
         )}
         <footer className="statusbar">
           <span>{snapshot?.dataDirectory ?? 'Database locale'}</span>

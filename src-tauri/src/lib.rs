@@ -1,5 +1,6 @@
 mod backend;
 mod commands;
+mod inspiration_commands;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -43,7 +44,12 @@ pub fn run() {
             commands::add_scan_root,
             commands::scan_scan_root,
             commands::set_scan_root_enabled,
-            commands::remove_scan_root
+            commands::remove_scan_root,
+            inspiration_commands::load_inspiration,
+            inspiration_commands::save_inspiration,
+            inspiration_commands::import_inspiration_image,
+            inspiration_commands::get_inspiration_asset,
+            inspiration_commands::open_inspiration_link
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Open Font Manager");

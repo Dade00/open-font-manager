@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Open Font Manager desktop app built with Tauri"
+license = "MIT"
+repository = "https://github.com/Dade00/open-font-manager"
 
 [lib]
 name = "open_font_manager_lib"

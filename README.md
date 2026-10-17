@@ -1,10 +1,16 @@
 # Open Font Manager
 
+[![CI](https://github.com/Dade00/open-font-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Dade00/open-font-manager/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PayPal](https://img.shields.io/badge/Support-PayPal-0070ba.svg)](https://paypal.me/davidezmb)
+
+**Windows font manager built with Rust, Tauri and React.** Local font indexing, persistent per-user installation, cloud catalogs, global search and typography moodboards. The interface and current documentation are in Italian. Windows 11 x64 is the supported platform; this is an early development release, not a stable packaged product.
+
 Applicazione desktop nativa per Windows 11 che indicizza font locali, mostra anteprime e consente di installare i font per l’utente Windows corrente. Consulta anche Google Fonts e organizza i caratteri in collezioni.
 
 L’interfaccia desktop usa Tauri 2, React, TypeScript e DaisyUI; scanner, database, installazione dei font e servizi restano nel core Rust. Le operazioni di filesystem e SQLite vengono eseguite fuori dal thread della UI.
 
-> **Stato:** versione iniziale in sviluppo. Non è ancora distribuito un installer. L’installazione persistente per l’utente corrente è implementata, ma va verificata manualmente nelle applicazioni Windows che usi.
+> **Stato:** versione iniziale in sviluppo. La [prima prerelease](https://github.com/Dade00/open-font-manager/releases/tag/v0.1.0) offre un eseguibile Windows x64 in ZIP, senza installer e senza firma digitale. L’installazione persistente per l’utente corrente è implementata, ma va verificata manualmente nelle applicazioni Windows che usi.
 
 ## Funzioni
 
@@ -18,6 +24,8 @@ L’interfaccia desktop usa Tauri 2, React, TypeScript e DaisyUI; scanner, datab
 - Copia negli appunti di snippet CSS e `next/font`.
 - Dati applicativi e cache separati nelle directory locali individuate da `directories`.
 - Importazione automatica di ZIP trascinate nell’app: estrae solo font `.ttf` e `.otf` validi nella cartella gestita e li aggiunge alla Libreria locale.
+- Cataloghi Fontsource Extra, Fontshare e Nerd Fonts, con ricerca globale tra i cataloghi e la libreria locale.
+- Ispirazione: composizioni tipografiche e moodboard locali con immagini, link, note e riferimenti ai font.
 
 ## Limitazioni note
 
@@ -27,7 +35,7 @@ L’interfaccia desktop usa Tauri 2, React, TypeScript e DaisyUI; scanner, datab
 - `WM_FONTCHANGE` è una notifica: ogni applicazione terza decide autonomamente se aggiornare subito la propria lista di font.
 - Il catalogo online usa il servizio pubblico `google-webfonts-helper` (`gwfh.mranftl.com`), che è un servizio di terze parti e può essere indisponibile o cambiare. La cache può mantenere disponibile l’ultimo catalogo salvato.
 - Non è inclusa una system tray.
-- Non è ancora stato eseguito un collaudo manuale completo su più applicazioni Windows né sono pubblicati installer o release binarie.
+- Non è ancora stato eseguito un collaudo manuale completo su più applicazioni Windows; non è disponibile un installer. La prerelease binaria non è firmata e Windows potrebbe mostrare un avviso SmartScreen.
 - Il passaggio a Tauri non è ancora stato valutato con un profilo frame-time né collaudato trascinando la finestra tra monitor con scaling DPI diverso. Fluidità e stabilità vanno verificate nell’uso reale.
 
 ## Avvio rapido
@@ -35,15 +43,17 @@ L’interfaccia desktop usa Tauri 2, React, TypeScript e DaisyUI; scanner, datab
 ### Requisiti
 
 - Windows 11 x64.
-- Rust 1.80 o successivo con target MSVC (`x86_64-pc-windows-msvc`) e linker di Visual Studio Build Tools.
-- Node.js e npm per Vite, React e la CLI Tauri.
+- Rust stable aggiornato con target MSVC (`x86_64-pc-windows-msvc`) e Visual Studio Build Tools con il workload C++ e Windows SDK. Il valore `rust-version` nei manifest non è ancora verificato come MSRV dell’intero lockfile.
+- Node.js 22.12 o successivo e npm per Vite, React e la CLI Tauri.
 - WebView2 Runtime, normalmente già presente su Windows 11.
 
 ### Compilazione ed esecuzione
 
 ```powershell
 rustup target add x86_64-pc-windows-msvc
-npm install
+git clone https://github.com/Dade00/open-font-manager.git
+cd open-font-manager
+npm ci
 npm run tauri -- dev
 ```
 
@@ -99,10 +109,20 @@ cargo test -p rust-font-manager --target x86_64-pc-windows-msvc --test google_fo
 
 ## Privacy e dati
 
-La libreria, i preferiti, le collezioni e i file scaricati rimangono sul dispositivo. Le richieste al catalogo e ai file Google Fonts contattano il servizio pubblico `gwfh.mranftl.com` e gli host di distribuzione dei font. I percorsi locali scansionati non sono inviati dal client.
+La libreria, i preferiti, le collezioni, le moodboard e i file scaricati rimangono sul dispositivo. Le richieste ai cataloghi e ai file contattano Google Fonts tramite `gwfh.mranftl.com`, Fontsource, Fontshare, GitHub per Nerd Fonts e i relativi host di distribuzione. I percorsi locali scansionati non sono inviati dal client. I link delle moodboard si aprono nel browser di sistema soltanto su richiesta.
 
 I file font scaricati sono conservati nell’archivio dati dell’app e indicizzati nella Libreria locale; la scansione dei font esistenti non li copia né li installa.
 
 ## Licenza
 
-Il repository è pubblico, ma al momento non contiene una licenza open source. La pubblicazione non concede automaticamente diritti di riutilizzo o ridistribuzione. La licenza è da definire.
+Il codice di Open Font Manager è distribuito con [licenza MIT](LICENSE): uso, modifica e ridistribuzione, anche commerciale, sono consentiti alle condizioni della licenza. Non è dovuta alcuna fee.
+
+Le dipendenze, i font e gli altri contenuti di terze parti mantengono le proprie licenze: la MIT di questo repository non li rilicenzia. Consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Contribuire e segnalare problemi
+
+Leggi [CONTRIBUTING.md](CONTRIBUTING.md) per setup, verifiche e pull request, il [codice di condotta](CODE_OF_CONDUCT.md) per la community e [SECURITY.md](SECURITY.md) per segnalazioni riservate. Le funzionalità pianificate sono in [docs/FEATURE-QUEUE.md](docs/FEATURE-QUEUE.md).
+
+## Sostieni il progetto
+
+Se Open Font Manager ti è utile, puoi lasciare una mancia volontaria su **[PayPal](https://paypal.me/davidezmb)**. Non è necessaria per usare il software e non acquista supporto, priorità o funzionalità aggiuntive.

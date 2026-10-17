@@ -6,6 +6,7 @@ import type { FontItem, RemoteFontCatalogItem, RemoteFontCatalogSnapshot, Remote
 import { PreviewQueue } from './adaptivePreviewQueue';
 import { CategoryFilter } from './CategoryFilter';
 import { categoryLabel, normalizeCategory } from './categories';
+import type { InspirationFontRef } from './inspirationTypes';
 
 const PROVIDERS: Record<Exclude<RemoteFontProvider, 'google'>, { title: string; description: string }> = {
   'fontsource-extra': {
@@ -28,6 +29,7 @@ export function CloudCatalogView({
   api,
   provider,
   onInstalled,
+  onTryFont,
   installedFonts = [],
   previewText = 'Aa Bb Cc 0123',
   previewSize = 28,
@@ -35,6 +37,7 @@ export function CloudCatalogView({
   api: FontManagerApi;
   provider: Exclude<RemoteFontProvider, 'google'>;
   onInstalled(fontIds: string[], message: string, failed: boolean): void;
+  onTryFont?(font: InspirationFontRef): void;
   installedFonts?: FontItem[];
   previewText?: string;
   previewSize?: number;
@@ -332,6 +335,7 @@ export function CloudCatalogView({
                 </div>
                 <p className="font-row-meta">Il font viene scaricato nel vault e attivato per l’utente Windows.</p>
                 <div className="card-actions remote-actions">
+                  {onTryFont && <button className="btn btn-outline" type="button" onClick={() => onTryFont({ provider, familyId: selected.id, variantId: variantId || selected.previewVariantId, localFontId: null, family: selected.family, isVariable: selected.isVariable ?? null })}>Prova in Ispirazione</button>}
                   <button className="btn btn-primary" disabled={busyId !== null || isInstalled(selected.id)} onClick={() => void install(selected)} type="button">
                     {busyId === selected.id && <span className="loading loading-spinner loading-xs" />}
                     {isInstalled(selected.id) ? 'Installato' : busyId === selected.id ? 'Installazione…' : 'Installa'}

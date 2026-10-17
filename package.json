@@ -2,6 +2,12 @@
   "name": "open-font-manager",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dade00/open-font-manager.git"
+  },
+  "funding": "https://paypal.me/davidezmb",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",

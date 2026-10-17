@@ -1,0 +1,41 @@
+.inspiration-view { --iw-space: 1rem; }
+.inspiration-view .inspiration-header { align-items: flex-start; }
+.inspiration-view .inspiration-header p { max-width: 38rem; margin: .35rem 0 0; color: color-mix(in oklch, var(--color-base-content), transparent 24%); }
+.inspiration-view .inspiration-tabs { display: flex; align-items: stretch; gap: .5rem; border-bottom: 1px solid var(--color-base-300); }
+.inspiration-view .inspiration-tab { display: grid; height: auto; min-height: 4.25rem; justify-items: start; gap: .2rem; padding: .65rem .9rem; text-align: left; white-space: normal; }
+.inspiration-view .inspiration-tab strong { font-size: .95rem; }
+.inspiration-view .inspiration-tab span { max-width: 22rem; color: color-mix(in oklch, var(--color-base-content), transparent 20%); font-size: .78rem; line-height: 1.35; }
+.inspiration-view .inspiration-section-title { align-items: center; }
+.inspiration-view .inspiration-section-title h2, .inspiration-view .inspiration-board-heading h2 { margin: 0; font-family: Georgia, serif; font-size: 1.45rem; font-weight: 400; }
+.inspiration-view .inspiration-section-title p, .inspiration-view .inspiration-board-heading p { margin: .25rem 0 0; color: color-mix(in oklch, var(--color-base-content), transparent 22%); }
+.inspiration-view .inspiration-empty { max-width: 40rem; padding: 2rem 0; }
+.inspiration-view .inspiration-empty h3 { margin: 0; font-family: Georgia, serif; font-size: 1.4rem; font-weight: 400; }
+.inspiration-view .inspiration-empty p { color: color-mix(in oklch, var(--color-base-content), transparent 20%); }
+.inspiration-view .inspiration-composition-actions { align-items: center; }
+.inspiration-view .inspiration-secondary { position: relative; }
+.inspiration-view .inspiration-secondary .dropdown-content { z-index: 5; width: max-content; max-width: min(22rem, calc(100vw - 2rem)); border: 1px solid var(--color-base-300); background: var(--color-base-100); box-shadow: 0 8px 20px color-mix(in oklch, var(--color-base-content), transparent 85%); }
+.inspiration-view .inspiration-board-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.inspiration-view .inspiration-board-settings { position: absolute; z-index: 5; right: 0; width: min(24rem, calc(100vw - 2rem)); padding: 1rem; border: 1px solid var(--color-base-300); background: var(--color-base-100); }
+.inspiration-view .inspiration-board-actions { margin-block: 1rem; }
+.inspiration-view .inspiration-board-actions .dropdown-content { z-index: 5; width: 15rem; border: 1px solid var(--color-base-300); background: var(--color-base-100); }
+.inspiration-view .inspiration-item-editor { display: grid; gap: .5rem; }
+.inspiration-view .inspiration-board-sidebar .menu button { min-height: 44px; }
+.inspiration-view .inspiration-role-controls { margin-top: .75rem; }
+.inspiration-view .inspiration-compositions > li > .inspiration-preview { margin-bottom: .75rem; }
+.inspiration-view .inspiration-matches { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); align-items: start; gap: 1.25rem; }
+.inspiration-view .inspiration-match-list { grid-column: 1; grid-row: 1; }
+.inspiration-view .inspiration-live-preview { margin-bottom: 2rem; }
+.inspiration-view .inspiration-live-preview h2 { margin: 0 0 .75rem; font-size: 1.15rem; }
+.inspiration-view .inspiration-matches > .inspiration-editor { grid-column: 2; grid-row: 1; }
+.inspiration-view .inspiration-editor { position: sticky; top: 1rem; max-height: max(300px, calc(100vh - 320px)); overflow: auto; display: grid; gap: .5rem; padding: 1rem; border: 1px solid var(--color-base-300); border-radius: var(--radius-box); background: var(--color-base-100); }
+.inspiration-view .inspiration-editor .inspiration-role { margin-block: .25rem; }
+.inspiration-view .inspiration-editor .textarea { min-height: 64px; height: 64px; }
+.inspiration-view .inspiration-editor-heading h2 { margin: 0; font-size: 1.15rem; }
+.inspiration-view .inspiration-editor-heading p { margin: .25rem 0 0; color: color-mix(in oklch, var(--color-base-content), transparent 22%); }
+.inspiration-view .inspiration-editor-actions { position: sticky; bottom: -.5rem; display: flex; justify-content: flex-end; gap: .5rem; padding: .65rem 0 .25rem; background: var(--color-base-100); }
+@media (max-width: 800px) {
+  .inspiration-view .inspiration-matches { grid-template-columns: 1fr; }
+  .inspiration-view .inspiration-match-list { grid-column: 1; grid-row: 2; }
+  .inspiration-view .inspiration-matches > .inspiration-editor { grid-column: 1; grid-row: 1; }
+  .inspiration-view .inspiration-editor { position: static; max-height: none; }
+}

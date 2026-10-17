@@ -475,8 +475,7 @@ fn parse_fontsource_details_value(
             });
         }
     }
-    files
-        .sort_by(|left, right| (left.weight, left.is_italic).cmp(&(right.weight, right.is_italic)));
+    files.sort_by_key(|file| (file.weight, file.is_italic));
     if files.is_empty() {
         return Err(remote_format(&endpoint, "no valid TTF variants were found"));
     }
@@ -711,7 +710,7 @@ pub fn validate_download_url(provider: RemoteFontProvider, value: &str) -> Resul
         || url.fragment().is_some()
     {
         return Err(remote_format(
-            &url.to_string(),
+            url.as_str(),
             "URL must use HTTPS and an allowlisted provider host without credentials or fragments",
         ));
     }

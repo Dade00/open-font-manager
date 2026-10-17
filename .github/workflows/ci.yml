@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    name: Windows checks
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - name: Select Rust stable
+        run: rustup default stable
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Frontend tests
+        run: npm test -- --reporter=dot
+      - name: Frontend build
+        run: npm run build
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Rust tests
+        run: cargo test --workspace --locked --target x86_64-pc-windows-msvc
+      - name: Rust Clippy
+        run: cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings

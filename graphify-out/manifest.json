@@ -1,0 +1,584 @@
+{
+  "Cargo.toml": {
+    "mtime": 1792274265.444161,
+    "seen": 1792274379.5352364,
+    "ast_hash": "adc4a47d53a3ca1ced362574d0a3420f",
+    "semantic_hash": ""
+  },
+  "src/db.rs": {
+    "mtime": 1792016538.8068392,
+    "seen": 1792016662.325613,
+    "ast_hash": "f62f37b7ce369b05b219a9de34661697",
+    "semantic_hash": ""
+  },
+  "src/errors.rs": {
+    "mtime": 1791983255.6422484,
+    "seen": 1791985908.898668,
+    "ast_hash": "16bf273abbb48ec6086ccf54c36f2dcb",
+    "semantic_hash": ""
+  },
+  "src/font_scanner.rs": {
+    "mtime": 1792015357.8760653,
+    "seen": 1792015377.8593411,
+    "ast_hash": "063a6d3e73a3fcb67dec513974614036",
+    "semantic_hash": ""
+  },
+  "src/google_fonts.rs": {
+    "mtime": 1791977082.2957864,
+    "seen": 1791978231.0700598,
+    "ast_hash": "45608213cc11a4479f82a4f455869df0",
+    "semantic_hash": ""
+  },
+  "src/installed_fonts.rs": {
+    "mtime": 1792007669.508884,
+    "seen": 1792015377.8593411,
+    "ast_hash": "806d59b827d282742cfb51e462666279",
+    "semantic_hash": ""
+  },
+  "src/lib.rs": {
+    "mtime": 1792050415.9243321,
+    "seen": 1792051005.0139859,
+    "ast_hash": "a6c90f6002dcc30dcb7b8da3af0d2385",
+    "semantic_hash": ""
+  },
+  "src/models.rs": {
+    "mtime": 1792015822.3086839,
+    "seen": 1792016386.193555,
+    "ast_hash": "338cf69823193e45e0b0b7750d777c8b",
+    "semantic_hash": ""
+  },
+  "src/paths.rs": {
+    "mtime": 1791977082.302295,
+    "seen": 1791978231.0700598,
+    "ast_hash": "495e516d5a19b35820e1079f65303077",
+    "semantic_hash": ""
+  },
+  "src/services.rs": {
+    "mtime": 1792010896.3614292,
+    "seen": 1792015377.8593411,
+    "ast_hash": "b9f680c5e684f0e1c7c7019db13dd8c7",
+    "semantic_hash": ""
+  },
+  "src/services/google_library.rs": {
+    "mtime": 1792015357.8770583,
+    "seen": 1792015377.8593411,
+    "ast_hash": "6f284eb405c70a04b0c7a47687b4b5a7",
+    "semantic_hash": ""
+  },
+  "src/services/local_library.rs": {
+    "mtime": 1792011723.8564563,
+    "seen": 1792015377.8593411,
+    "ast_hash": "47d20ca07b07c4021fe9313e09659637",
+    "semantic_hash": ""
+  },
+  "src/snippets.rs": {
+    "mtime": 1792010109.3515177,
+    "seen": 1792015377.8593411,
+    "ast_hash": "23c83808a6d664a65603659cde974118",
+    "semantic_hash": ""
+  },
+  "src/win_font_loader.rs": {
+    "mtime": 1791977082.302295,
+    "seen": 1791978231.0700598,
+    "ast_hash": "4407d3404efd2ff9e848344d395ce127",
+    "semantic_hash": ""
+  },
+  "tests/app_paths.rs": {
+    "mtime": 1791977082.3068068,
+    "seen": 1791978231.0700598,
+    "ast_hash": "bf376d6d100ab905aa6dc6308afc9cb7",
+    "semantic_hash": ""
+  },
+  "tests/db_tests.rs": {
+    "mtime": 1792016538.8495004,
+    "seen": 1792016662.325613,
+    "ast_hash": "4b3bd84f3858f257feebd02765cedda2",
+    "semantic_hash": ""
+  },
+  "tests/google_fonts_tests.rs": {
+    "mtime": 1791977082.3078058,
+    "seen": 1791978231.0700598,
+    "ast_hash": "0bf4dba4908ffe2bac0eb3b207926cf2",
+    "semantic_hash": ""
+  },
+  "tests/installed_fonts_tests.rs": {
+    "mtime": 1792007637.4884272,
+    "seen": 1792015377.8593411,
+    "ast_hash": "8af980c3616f27768c724d5e336e648b",
+    "semantic_hash": ""
+  },
+  "tests/model_tests.rs": {
+    "mtime": 1792010109.3555205,
+    "seen": 1792015377.8593411,
+    "ast_hash": "5571c057d1fd28994322b6631f417b53",
+    "semantic_hash": ""
+  },
+  "tests/scanner_tests.rs": {
+    "mtime": 1792016481.3232,
+    "seen": 1792016662.325613,
+    "ast_hash": "73fb1f0d53e77e41de744f9a32f3e418",
+    "semantic_hash": ""
+  },
+  "tests/snippets_tests.rs": {
+    "mtime": 1792015401.4188066,
+    "seen": 1792015483.8736513,
+    "ast_hash": "a32adc2e038f12ee6b5fdf0719c6bd31",
+    "semantic_hash": ""
+  },
+  "IDEA.md": {
+    "mtime": 1791985189.2097197,
+    "seen": 1791985908.898668,
+    "ast_hash": "07a0168c7d7df5358bb7afffa699cdf2",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1792274272.870121,
+    "seen": 1792274379.5352364,
+    "ast_hash": "3b567333f5c7806ad77969de4634443f",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-14-rust-font-manager-implementation.md": {
+    "mtime": 1791985190.867417,
+    "seen": 1791985908.898668,
+    "ast_hash": "1459807e4ac12fd338b766c04da79ba2",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-14-rust-font-manager-design.md": {
+    "mtime": 1791971048.1415765,
+    "seen": 1791978231.0700598,
+    "ast_hash": "9b1235b17690ab68d413af87548c0e00",
+    "semantic_hash": ""
+  },
+  "package.json": {
+    "mtime": 1792274269.1101704,
+    "seen": 1792274379.5352364,
+    "ast_hash": "b5c9b4b4c133b8174e1c7d0a09c491d4",
+    "semantic_hash": ""
+  },
+  "src-tauri/Cargo.toml": {
+    "mtime": 1792274267.295792,
+    "seen": 1792274379.5352364,
+    "ast_hash": "cf5d6c80691548ad7323affd190db3bc",
+    "semantic_hash": ""
+  },
+  "src-tauri/build.rs": {
+    "mtime": 1791983431.0266664,
+    "seen": 1791985908.898668,
+    "ast_hash": "1be34a5c61c2c35365de3dab14298f0b",
+    "semantic_hash": ""
+  },
+  "src-tauri/capabilities/default.json": {
+    "mtime": 1791983432.6663811,
+    "seen": 1791985908.898668,
+    "ast_hash": "4305023cb5d614d4b7cde32c74b4de39",
+    "semantic_hash": ""
+  },
+  "src-tauri/gen/schemas/acl-manifests.json": {
+    "mtime": 1791983492.305206,
+    "seen": 1791985908.898668,
+    "ast_hash": "5ff40c24c2c200fb98b29152dd0eb4f1",
+    "semantic_hash": ""
+  },
+  "src-tauri/gen/schemas/capabilities.json": {
+    "mtime": 1791983492.3112075,
+    "seen": 1791985908.898668,
+    "ast_hash": "9b32d9c71192c036d6f32430c1c91c03",
+    "semantic_hash": ""
+  },
+  "src-tauri/gen/schemas/desktop-schema.json": {
+    "mtime": 1791983492.3102078,
+    "seen": 1791985908.898668,
+    "ast_hash": "43b30b1a423a698512b83451cb93a0b4",
+    "semantic_hash": ""
+  },
+  "src-tauri/gen/schemas/windows-schema.json": {
+    "mtime": 1791983492.3102078,
+    "seen": 1791985908.898668,
+    "ast_hash": "43b30b1a423a698512b83451cb93a0b4",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/backend.rs": {
+    "mtime": 1792014900.7538626,
+    "seen": 1792015377.8593411,
+    "ast_hash": "d1058768552d51f3dce1e4d0825db162",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/commands.rs": {
+    "mtime": 1792011900.3825896,
+    "seen": 1792015377.8593411,
+    "ast_hash": "ae7135b7f559762a07ee294711561363",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/lib.rs": {
+    "mtime": 1792050388.4558003,
+    "seen": 1792051005.0139859,
+    "ast_hash": "26dd4320367542bb5af6f7079e9e0004",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/main.rs": {
+    "mtime": 1791983545.695684,
+    "seen": 1791985908.898668,
+    "ast_hash": "a505da0a90726c569c453af475423533",
+    "semantic_hash": ""
+  },
+  "src-tauri/tauri.conf.json": {
+    "mtime": 1792014141.2208292,
+    "seen": 1792015377.8593411,
+    "ast_hash": "55c998544d392193a3edac54f421240b",
+    "semantic_hash": ""
+  },
+  "src-tauri/tests/backend_contract.rs": {
+    "mtime": 1792015790.1293137,
+    "seen": 1792016386.193555,
+    "ast_hash": "9dc2df2711f353b6a2b61b56ae028b35",
+    "semantic_hash": ""
+  },
+  "tsconfig.app.json": {
+    "mtime": 1791983431.018953,
+    "seen": 1791985908.898668,
+    "ast_hash": "332ac04f7cef150369078c44d94017fa",
+    "semantic_hash": ""
+  },
+  "tsconfig.json": {
+    "mtime": 1791983430.9697454,
+    "seen": 1791985908.898668,
+    "ast_hash": "a3d39fa780ebff65444de257f291ce6c",
+    "semantic_hash": ""
+  },
+  "tsconfig.node.json": {
+    "mtime": 1791984807.0473523,
+    "seen": 1791985908.898668,
+    "ast_hash": "954dc90ca57898de58354277709d53da",
+    "semantic_hash": ""
+  },
+  "ui/src/App.test.tsx": {
+    "mtime": 1792052925.981869,
+    "seen": 1792053125.990107,
+    "ast_hash": "b7be8d0064b58a13e68635b54cbd7365",
+    "semantic_hash": ""
+  },
+  "ui/src/App.tsx": {
+    "mtime": 1792051441.4056296,
+    "seen": 1792051896.5714405,
+    "ast_hash": "ba8c4c8b9a8002948a379d742d518d43",
+    "semantic_hash": ""
+  },
+  "ui/src/api.ts": {
+    "mtime": 1792012117.5222738,
+    "seen": 1792015377.8593411,
+    "ast_hash": "f82e43a8d1fb107b3d246a399602d887",
+    "semantic_hash": ""
+  },
+  "ui/src/main.tsx": {
+    "mtime": 1791984482.1088648,
+    "seen": 1791985908.898668,
+    "ast_hash": "9def7e5760d220b4705bed6b42e152ad",
+    "semantic_hash": ""
+  },
+  "ui/src/test-setup.ts": {
+    "mtime": 1791983804.1801555,
+    "seen": 1791985908.898668,
+    "ast_hash": "b6047cb48430aab17d0c9a3cec1e4bb5",
+    "semantic_hash": ""
+  },
+  "ui/src/types.ts": {
+    "mtime": 1792016692.2981033,
+    "seen": 1792050107.7742949,
+    "ast_hash": "70ee441bd879794324abf4d76df5bd58",
+    "semantic_hash": ""
+  },
+  "vite.config.ts": {
+    "mtime": 1791984848.7637439,
+    "seen": 1791985908.898668,
+    "ast_hash": "12aa4edc6c0e89a77e147431c3a970e7",
+    "semantic_hash": ""
+  },
+  "ui/index.html": {
+    "mtime": 1791983431.026149,
+    "seen": 1791985908.898668,
+    "ast_hash": "c1e15cf42cf26aa2469a98f0cecfe1ef",
+    "semantic_hash": ""
+  },
+  "src/services/zip_import.rs": {
+    "mtime": 1792001425.8241823,
+    "seen": 1792001647.2952032,
+    "ast_hash": "19a75ccdeba9859a42dd871ef4c30422",
+    "semantic_hash": ""
+  },
+  "ui/src/adaptivePreviewQueue.test.ts": {
+    "mtime": 1792014219.1999009,
+    "seen": 1792015377.8593411,
+    "ast_hash": "0813273a71a5136fa4e0f0cdb37b49d0",
+    "semantic_hash": ""
+  },
+  "ui/src/adaptivePreviewQueue.ts": {
+    "mtime": 1792014759.6597707,
+    "seen": 1792015377.8593411,
+    "ast_hash": "20f197972fe9b406fbe7eff8f5ff8139",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-14-cloud-font-providers-design.md": {
+    "mtime": 1792008697.9955664,
+    "seen": 1792015377.8593411,
+    "ast_hash": "d5294935d3b01eb252006f986bd18438",
+    "semantic_hash": ""
+  },
+  "src/cloud_fonts.rs": {
+    "mtime": 1792274262.4436746,
+    "seen": 1792274379.5352364,
+    "ast_hash": "7944fc21cf1025cc4e6c11841c018ed4",
+    "semantic_hash": ""
+  },
+  "src/services/cloud_import.rs": {
+    "mtime": 1792015790.106176,
+    "seen": 1792016386.193555,
+    "ast_hash": "9e40273873cfdf370f82c25509fef913",
+    "semantic_hash": ""
+  },
+  "src/services/font_install.rs": {
+    "mtime": 1792014123.005484,
+    "seen": 1792015377.8593411,
+    "ast_hash": "4bd39a3ae01a33c4ffd8127b43f2cdc1",
+    "semantic_hash": ""
+  },
+  "tests/cloud_fonts_tests.rs": {
+    "mtime": 1792010129.4528801,
+    "seen": 1792015377.8593411,
+    "ast_hash": "befe5148e443d94f7f8320ac0ee420cd",
+    "semantic_hash": ""
+  },
+  "tests/cloud_import_tests.rs": {
+    "mtime": 1792014538.6955774,
+    "seen": 1792015377.8593411,
+    "ast_hash": "a8f6feb44feec896d19c4e68db24302d",
+    "semantic_hash": ""
+  },
+  "tests/font_install_tests.rs": {
+    "mtime": 1792003389.7054827,
+    "seen": 1792015377.8593411,
+    "ast_hash": "88fc2a57d75a94780dd6382daaca0d29",
+    "semantic_hash": ""
+  },
+  "ui/src/CategoryFilter.tsx": {
+    "mtime": 1792015975.977468,
+    "seen": 1792016386.193555,
+    "ast_hash": "f4058d3c1da182cfc2a110740ac19e43",
+    "semantic_hash": ""
+  },
+  "ui/src/CloudCatalogView.test.tsx": {
+    "mtime": 1792015362.0295577,
+    "seen": 1792015377.8593411,
+    "ast_hash": "f2a6be5a02a0695acbf35a6c4d150536",
+    "semantic_hash": ""
+  },
+  "ui/src/CloudCatalogView.tsx": {
+    "mtime": 1792050322.0413163,
+    "seen": 1792051005.0139859,
+    "ast_hash": "e28d2247dab1792d60a5f305a94b1236",
+    "semantic_hash": ""
+  },
+  "ui/src/SettingsView.test.tsx": {
+    "mtime": 1792014152.1267476,
+    "seen": 1792015377.8593411,
+    "ast_hash": "6454b4c35542aeef210fcb80d87eb9cc",
+    "semantic_hash": ""
+  },
+  "ui/src/SettingsView.tsx": {
+    "mtime": 1792014233.6501174,
+    "seen": 1792015377.8593411,
+    "ast_hash": "c3ba3c8a85d886523ee13f874123300d",
+    "semantic_hash": ""
+  },
+  "ui/src/categories.ts": {
+    "mtime": 1792015397.030837,
+    "seen": 1792015483.8736513,
+    "ast_hash": "501286140a22f82f7f5bd943630cd158",
+    "semantic_hash": ""
+  },
+  "PONYTAIL-DEBT.md": {
+    "mtime": 1792016851.3400216,
+    "seen": 1792050107.7742949,
+    "ast_hash": "1d14bd2875249f0f2356f7b53d20fa9c",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-14-cloud-font-providers.md": {
+    "mtime": 1792008838.492048,
+    "seen": 1792015377.8593411,
+    "ast_hash": "111d7138774b2555f26eb319ec332f3b",
+    "semantic_hash": ""
+  },
+  "docs/FEATURE-QUEUE.md": {
+    "mtime": 1792054930.8873763,
+    "seen": 1792054958.6807861,
+    "ast_hash": "e6483ae3497830c91a86c1956597cd0b",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-15-font-catalog-research.md": {
+    "mtime": 1792015880.6454408,
+    "seen": 1792016386.193555,
+    "ast_hash": "ebfd0dafd5bdd00f19d103115d9ae504",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-15-global-font-search-design.md": {
+    "mtime": 1792052927.9152927,
+    "seen": 1792053125.990107,
+    "ast_hash": "65b82b74511610d962da693b60ebedba",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-15-inspiration-design.md": {
+    "mtime": 1792053771.3270218,
+    "seen": 1792054711.9058352,
+    "ast_hash": "3e8898e0c209f934ea1cf0fc380b1e11",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/inspiration_commands.rs": {
+    "mtime": 1792051082.878326,
+    "seen": 1792051896.5714405,
+    "ast_hash": "8f7011719e38dc6808d6bd72248d12ea",
+    "semantic_hash": ""
+  },
+  "src/inspiration.rs": {
+    "mtime": 1792051138.297745,
+    "seen": 1792051896.5714405,
+    "ast_hash": "88c3982bfaeeaf674ff8921564624614",
+    "semantic_hash": ""
+  },
+  "tests/inspiration_tests.rs": {
+    "mtime": 1792051106.6832786,
+    "seen": 1792051896.5714405,
+    "ast_hash": "842c22401d4bcf77c6a45016aaf35e56",
+    "semantic_hash": ""
+  },
+  "ui/src/GlobalSearchView.test.tsx": {
+    "mtime": 1792053214.4291255,
+    "seen": 1792054711.9058352,
+    "ast_hash": "c96565010f823d38d3b2ca89ce20be78",
+    "semantic_hash": ""
+  },
+  "ui/src/GlobalSearchView.tsx": {
+    "mtime": 1792053112.1609683,
+    "seen": 1792053125.990107,
+    "ast_hash": "b3f72edeca456c3c100d53538a7e52af",
+    "semantic_hash": ""
+  },
+  "ui/src/InspirationView.test.tsx": {
+    "mtime": 1792054188.4838123,
+    "seen": 1792054711.9058352,
+    "ast_hash": "fda30f76ec9af553c1a8868637c8aedf",
+    "semantic_hash": ""
+  },
+  "ui/src/InspirationView.tsx": {
+    "mtime": 1792054549.075174,
+    "seen": 1792054711.9058352,
+    "ast_hash": "0729b4a009a2e042c37653d018ccef5b",
+    "semantic_hash": ""
+  },
+  "ui/src/globalSearch.test.ts": {
+    "mtime": 1792052627.8259237,
+    "seen": 1792052693.045792,
+    "ast_hash": "abc00e62ff3ccb5dbee406aa7730a71d",
+    "semantic_hash": ""
+  },
+  "ui/src/globalSearch.ts": {
+    "mtime": 1792052713.2927847,
+    "seen": 1792053125.990107,
+    "ast_hash": "e209f626a99b2b4460079b951135696c",
+    "semantic_hash": ""
+  },
+  "ui/src/inspirationApi.ts": {
+    "mtime": 1792050307.1322522,
+    "seen": 1792051005.0139859,
+    "ast_hash": "b8b1f49bae2b80433dfe5bda081ba4a6",
+    "semantic_hash": ""
+  },
+  "ui/src/inspirationTypes.ts": {
+    "mtime": 1792050189.9025698,
+    "seen": 1792051005.0139859,
+    "ast_hash": "6c8949a05e2f32ddd50d83ea743e99b1",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-15-global-search-inspiration.md": {
+    "mtime": 1792054932.8263056,
+    "seen": 1792054958.6807861,
+    "ast_hash": "ccce52fc5f2351104e6b0f007e7d186d",
+    "semantic_hash": ""
+  },
+  "ui/src/InspirationConfirm.tsx": {
+    "mtime": 1792051666.776917,
+    "seen": 1792051896.5714405,
+    "ast_hash": "724bea6d392879e266d510386e718589",
+    "semantic_hash": ""
+  },
+  "scripts/check_catalog_layout.py": {
+    "mtime": 1792054788.8725817,
+    "seen": 1792054958.6807861,
+    "ast_hash": "1dcff0d50674c8a3701c1529d32a12de",
+    "semantic_hash": ""
+  },
+  ".github/FUNDING.yml": {
+    "mtime": 1792274324.575495,
+    "seen": 1792274379.5352364,
+    "ast_hash": "1eefcc757d7acc309b30db032d908a1a",
+    "semantic_hash": ""
+  },
+  ".github/ISSUE_TEMPLATE/bug_report.md": {
+    "mtime": 1792274330.526938,
+    "seen": 1792274379.5352364,
+    "ast_hash": "e91cba68f46c9a724fb832f00fd79180",
+    "semantic_hash": ""
+  },
+  ".github/ISSUE_TEMPLATE/config.yml": {
+    "mtime": 1792274332.1993444,
+    "seen": 1792274379.5352364,
+    "ast_hash": "a32f0494724b6e7a71db88a115b0cd6d",
+    "semantic_hash": ""
+  },
+  ".github/ISSUE_TEMPLATE/feature_request.md": {
+    "mtime": 1792274331.3635843,
+    "seen": 1792274379.5352364,
+    "ast_hash": "6b02124f589e766680aa8cc64fdc4a59",
+    "semantic_hash": ""
+  },
+  ".github/PULL_REQUEST_TEMPLATE.md": {
+    "mtime": 1792274333.5927055,
+    "seen": 1792274379.5352364,
+    "ast_hash": "4a57e9cb94183d5868604826dbec5cb3",
+    "semantic_hash": ""
+  },
+  ".github/dependabot.yml": {
+    "mtime": 1792274334.537065,
+    "seen": 1792274379.5352364,
+    "ast_hash": "98221318bef44626c370343711a6e02e",
+    "semantic_hash": ""
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1792274329.3665097,
+    "seen": 1792274379.5352364,
+    "ast_hash": "4163a1e4c9006907217317b6b168f03f",
+    "semantic_hash": ""
+  },
+  "CODE_OF_CONDUCT.md": {
+    "mtime": 1792274327.5577233,
+    "seen": 1792274379.5352364,
+    "ast_hash": "2d0ce1cb79797832b8de4d3738122b4f",
+    "semantic_hash": ""
+  },
+  "CONTRIBUTING.md": {
+    "mtime": 1792274325.8323426,
+    "seen": 1792274379.5352364,
+    "ast_hash": "4c84004169fde5c5103a0b489db143a7",
+    "semantic_hash": ""
+  },
+  "SECURITY.md": {
+    "mtime": 1792274326.6970913,
+    "seen": 1792274379.5352364,
+    "ast_hash": "eb1f5b64a1d0f752950ff2d8ac81d2b9",
+    "semantic_hash": ""
+  },
+  "THIRD_PARTY_NOTICES.md": {
+    "mtime": 1792274328.513317,
+    "seen": 1792274379.5352364,
+    "ast_hash": "7388823b442c3b6b37fbe53733d565d9",
+    "semantic_hash": ""
+  }
+}

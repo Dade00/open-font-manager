@@ -1,7 +1,7 @@
 # Ispirazione: abbinamenti e moodboard
 
-Stato: specifica scritta, in coda; nessuna implementazione autorizzata da questa attività di documentazione.
-Direzione approvata: due viste collegate, Abbinamenti e Moodboard; dati locali persistenti, griglia riordinabile, niente canvas infinita o AI nel primo rilascio. La revisione di questa specifica precede il piano esecutivo.
+Stato: implementata nella working tree dopo il checkpoint cloud `de4d142`; semplificazione UX richiesta il 2026-10-15 perché il flusso iniziale risultava confuso.
+Direzione approvata: due percorsi espliciti, Abbinamenti e Moodboard, ciascuno con breve spiegazione e una sola azione primaria. Dati locali persistenti, griglia riordinabile, niente canvas infinita o AI nel primo rilascio.
 
 ## Obiettivo
 
@@ -11,7 +11,7 @@ Ispirazione è la terza delle quattro tab primarie: Locali, Ricerca Globale, Isp
 
 ## Abbinamenti
 
-Tre ruoli: titolo, sottotitolo facoltativo e corpo. Ogni ruolo permette scelta di famiglia e variante fra font locali e cataloghi abilitati; modifica testo, dimensione, interlinea, spaziatura e colore. Sfondo comune e campione confrontabile a larghezza desktop o ridotta, senza introdurre un page builder.
+Editor direttamente nella sidebar laterale della vista Abbinamenti, pronto per provare due font, Titolo e Testo, senza popup, schermate extra o navigazione. Su finestre strette l'editor si impila nella stessa pagina. Una bozza iniziale intatta non conta come modifica non salvata; avvisare solo quando l'utente ha cambiato davvero la bozza o una composizione. Sottotitolo facoltativo e controlli dimensione, interlinea, spaziatura, colore e sfondo sono disponibili progressivamente, non esposti tutti insieme. Ogni ruolo conserva scelta di famiglia e variante fra font locali e cataloghi abilitati. Campione confrontabile a larghezza desktop o ridotta, senza page builder. Le composizioni salvate sono mostrate prima come contenuti da provare/modificare, non come moduli sempre aperti. I dialog restano per conferme distruttive, non per creare o modificare abbinamenti.
 
 I file remoti vengono caricati solo quando necessari alla composizione e solo quando le capability/licenze lo consentono. Anteprima non equivale a installazione Windows. Per font senza preview disponibile mostrare lo stato e proporre il percorso consentito, non fingere di renderizzare il carattere usando un fallback indistinguibile.
 
@@ -31,7 +31,7 @@ Board con nome e descrizione facoltativa, creazione, rinomina, duplicazione e ca
 - riferimento a una famiglia/variante;
 - composizione tipografica salvata.
 
-Visualizzazione a griglia riordinabile, dettaglio/edit dell'elemento e riordino sia con trascinamento sia con comandi da tastiera. Non affidare operazioni essenziali solo al drag-and-drop. L'ordine è persistente e deterministico dopo riavvio.
+Visualizzazione a griglia riordinabile, contenuti leggibili prima di modificarli. Un solo ingresso **Aggiungi contenuto** propone i cinque tipi e mostra il modulo contestuale scelto; non presentare insieme tutti i form. Dettaglio/edit esplicito e riordino sia con trascinamento sia con comandi da tastiera. Non affidare operazioni essenziali solo al drag-and-drop. L'ordine è persistente e deterministico dopo riavvio.
 
 Le immagini vengono copiate nell'archivio dell'app: spostare o eliminare l'originale non rompe la board. La rimozione di un elemento non elimina la sorgente dell'utente. Gli asset condivisi da più board non vengono rimossi finché esiste un riferimento. Cancellare una board o una composizione non disinstalla font e non cancella file dalla libreria.
 
