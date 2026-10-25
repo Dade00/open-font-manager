@@ -30,7 +30,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "daisyui": "^5.7.50",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4.3.3",
