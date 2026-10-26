@@ -1,6 +1,6 @@
 [package]
 name = "open-font-manager-app"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Open Font Manager desktop app built with Tauri"
@@ -18,9 +18,12 @@ tauri-build = { version = "2", features = [] }
 base64 = "0.23"
 rust-font-manager = { path = ".." }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-clipboard-manager = "2.5"
 tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
 
 [dev-dependencies]
 tempfile = "3"
