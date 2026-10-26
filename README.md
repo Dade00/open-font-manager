@@ -6,9 +6,9 @@
 
 A free, open-source font manager for **Windows 11 x64**, built with Rust, Tauri 2 and React. Browse local fonts, preview cloud catalogs, install fonts for your Windows user, and collect typography references in moodboards.
 
-The desktop interface is currently in **Italian**. This README uses the actual Italian control labels alongside English instructions.
+`README.md` uses the actual Italian control labels alongside English instructions.
 
-> **Early development release.** The [v0.1.0 prerelease](https://github.com/Dade00/open-font-manager/releases/tag/v0.1.0) provides a Windows x64 executable in a ZIP, without an installer or digital signature. Windows may display a SmartScreen warning. Font installation is implemented, but compatibility with individual Windows applications still needs broader manual testing.
+> **v0.2.0 release.** The Windows x64 NSIS installer and update packages are signed with Tauri's updater key (minisign). The release workflow publishes the installer and updater metadata when a `v*` tag is pushed. This updater signature is separate from an Authenticode publisher signature; Windows SmartScreen may still show a warning for an unrecognized publisher.
 
 ![Local library with Georgia selected and a real font preview](docs/assets/local-library.png)
 
@@ -29,11 +29,13 @@ The desktop interface is currently in **Italian**. This README uses the actual I
 
 ## Download and run
 
-1. Open the [release page](https://github.com/Dade00/open-font-manager/releases/tag/v0.1.0) and download the Windows x64 ZIP asset.
-2. Extract it into a folder you control, then launch `Open-Font-Manager.exe` (the executable name used in the v0.1.0 release archive).
+1. Open the [release page](https://github.com/Dade00/open-font-manager/releases/latest) and download the Windows x64 NSIS installer.
+2. Run the installer and follow its prompts.
 3. Allow the initial scan to finish before installing or removing fonts.
 
-Windows 11 x64 and the Microsoft Edge WebView2 Runtime are required; WebView2 is normally already present on Windows 11. The current release does not include an installer.
+When a newer release is available, the app checks at startup and offers to download and install it after confirmation. Updating requires Internet access. Release installs are distributed with signed updater packages; the signature does not provide an Authenticode publisher certificate.
+
+Windows 11 x64 and the Microsoft Edge WebView2 Runtime are required; WebView2 is normally already present on Windows 11.
 
 ## Usage
 
@@ -123,7 +125,16 @@ Build the optimized Windows executable:
 npm run tauri -- build --no-bundle --target x86_64-pc-windows-msvc
 ```
 
-The executable is written to `target/x86_64-pc-windows-msvc/release/open-font-manager-app.exe`. The current configuration does not generate an installer or bundle. `npm run build` checks TypeScript and builds frontend assets only, not the desktop executable.
+Build the signed NSIS installer locally (the private signing key is required):
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw C:\path\to\updater.key
+npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis
+```
+
+- `TAURI_SIGNING_PRIVATE_KEY` è un segreto GitHub Actions necessario per firmare ogni release; senza configurarlo il workflow non può pubblicare pacchetti updater utilizzabili. La chiave privata non va mai inserita nel repository; il secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` è necessario se la chiave è protetta da password. La chiave pubblica corrispondente è configurata in `src-tauri/tauri.conf.json`. Tauri scrive l'installer in `target/x86_64-pc-windows-msvc/release/bundle/nsis/` e la firma updater accanto al bundle. Il workflow pubblica la release GitHub e i metadati updater al push di un tag `v*`.
+
+`npm run build` checks TypeScript and builds frontend assets only, not the desktop executable.
 
 ## Tests and checks
 
@@ -148,14 +159,14 @@ cargo test -p rust-font-manager --target x86_64-pc-windows-msvc --test google_fo
 - Windows 11 x86_64 with the MSVC toolchain is the supported target. Other operating systems are not supported releases.
 - Local `.woff`, `.woff2`, Type 1 and bitmap fonts are not supported.
 - Catalogs and downloads depend on third-party services, which can change or become unavailable. Google Fonts access uses `google-webfonts-helper` at `gwfh.mranftl.com`.
-- There is no system tray, signed binary or installer yet.
+- There is no system tray or Authenticode publisher signature. Tauri updater packages use a separate minisign signature; Windows SmartScreen may still warn about an unrecognized publisher.
 - Full manual compatibility testing across Windows applications, frame-time profiling and mixed-DPI multi-monitor window testing are pending. Smoothness and stability should not be assumed from screenshots.
 
 ## Project layout
 
 | Path | Responsibility |
 | --- | --- |
-| `src-tauri/src/lib.rs`, `src-tauri/src/commands.rs` | Tauri runtime and IPC |
+| `src-tauri/src/lib.rs` | Tauri runtime, plugins and IPC |
 | `src-tauri/src/backend.rs` | Desktop adapter to Rust services |
 | `ui/src/` | React, TypeScript, Tailwind CSS and daisyUI interface |
 | `src/font_scanner.rs` | OpenType metadata through Fontations |

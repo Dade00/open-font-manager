@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Open Font Manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.rustfontmanager.openfontmanager",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -27,7 +27,17 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": []
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI1M0M0MzZCNTNEQUE3MjYKUldRbXA5cFRhME04SmFWTmR0L2VucUtyelc1OHJmRy9CcG9DUVNVZmRKQzFLMzVHSEUzVXc3bksK",
+      "endpoints": [
+        "https://github.com/Dade00/open-font-manager/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
