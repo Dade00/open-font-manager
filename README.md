@@ -4,50 +4,108 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/Support-PayPal-0070ba.svg)](https://paypal.me/davidezmb)
 
-**Windows font manager built with Rust, Tauri and React.** Local font indexing, persistent per-user installation, cloud catalogs, global search and typography moodboards. The interface and current documentation are in Italian. Windows 11 x64 is the supported platform; this is an early development release, not a stable packaged product.
+A free, open-source font manager for **Windows 11 x64**, built with Rust, Tauri 2 and React. Browse local fonts, preview cloud catalogs, install fonts for your Windows user, and collect typography references in moodboards.
 
-Applicazione desktop nativa per Windows 11 che indicizza font locali, mostra anteprime e consente di installare i font per l’utente Windows corrente. Consulta anche Google Fonts e organizza i caratteri in collezioni.
+The desktop interface is currently in **Italian**. This README uses the actual Italian control labels alongside English instructions.
 
-L’interfaccia desktop usa Tauri 2, React, TypeScript e DaisyUI; scanner, database, installazione dei font e servizi restano nel core Rust. Le operazioni di filesystem e SQLite vengono eseguite fuori dal thread della UI.
+> **Early development release.** The [v0.1.0 prerelease](https://github.com/Dade00/open-font-manager/releases/tag/v0.1.0) provides a Windows x64 executable in a ZIP, without an installer or digital signature. Windows may display a SmartScreen warning. Font installation is implemented, but compatibility with individual Windows applications still needs broader manual testing.
 
-> **Stato:** versione iniziale in sviluppo. La [prima prerelease](https://github.com/Dade00/open-font-manager/releases/tag/v0.1.0) offre un eseguibile Windows x64 in ZIP, senza installer e senza firma digitale. L’installazione persistente per l’utente corrente è implementata, ma va verificata manualmente nelle applicazioni Windows che usi.
+![Local library with Georgia selected and a real font preview](docs/assets/local-library.png)
 
-## Funzioni
+*Captured from the native Windows app with real library data. Fonts and counts reflect the capture machine, not bundled content. Screenshots show the development UI, which may differ from the published prerelease.*
 
-- Indicizzazione automatica all’avvio dei font installati per il sistema e per l’utente corrente; è possibile aggiungere anche altre cartelle.
-- Lettura dei formati `.ttf`, `.otf` e `.ttc`, incluse tutte le facce dei font collection.
-- Catalogo locale SQLite con ricerca, anteprime, preferiti, collezioni e paginazione.
-- Installazione persistente per l’utente Windows corrente e rimozione da Windows dei soli font gestiti da OFM.
-- Riconoscimento nella Libreria locale dei font già presenti nelle cartelle standard di Windows; OFM non offre la rimozione di installazioni esterne.
-- Ripristino all’avvio dei font installati tramite OFM e notifica `WM_FONTCHANGE` alle applicazioni.
-- Catalogo Google Fonts con cache locale, anteprima su richiesta, download di una variante o di un’intera famiglia.
-- Copia negli appunti di snippet CSS e `next/font`.
-- Dati applicativi e cache separati nelle directory locali individuate da `directories`.
-- Importazione automatica di ZIP trascinate nell’app: estrae solo font `.ttf` e `.otf` validi nella cartella gestita e li aggiunge alla Libreria locale.
-- Cataloghi Fontsource Extra, Fontshare e Nerd Fonts, con ricerca globale tra i cataloghi e la libreria locale.
-- Ispirazione: composizioni tipografiche e moodboard locali con immagini, link, note e riferimenti ai font.
+## Features
 
-## Limitazioni note
+- Index system and per-user Windows fonts automatically, and scan additional folders.
+- Read `.ttf`, `.otf` and `.ttc` files, including the faces in font collections.
+- Search a local SQLite library, filter categories, customize previews, and organize favorites and collections.
+- Install fonts persistently for the current Windows user; uninstall only installations managed by Open Font Manager.
+- Browse Google Fonts, Fontsource Extra, Fontshare and Nerd Fonts, or search across sources with **Ricerca Globale**.
+- Preview remote fonts on demand and bring downloaded fonts into the local library.
+- Import valid desktop `.ttf` and `.otf` files by dropping ZIP archives onto the app.
+- Copy CSS and Next.js font snippets from a local font's inspector.
+- Compare heading and body fonts in **Ispirazione**, save pairings, and organize images, links, notes and font references in local moodboards.
+- Inspect application paths, scan folders and catalog cache status in **Impostazioni**.
 
-- Target supportato: Windows 11 x86_64 con toolchain MSVC.
-- Formati locali supportati: `.ttf`, `.otf` e `.ttc`. `.woff`, `.woff2`, Type 1 e font bitmap non sono inclusi.
-- L’installazione usa la cartella font dell’utente corrente e la registrazione HKCU; non richiede privilegi amministrativi e non scrive in `C:\Windows\Fonts`.
-- `WM_FONTCHANGE` è una notifica: ogni applicazione terza decide autonomamente se aggiornare subito la propria lista di font.
-- Il catalogo online usa il servizio pubblico `google-webfonts-helper` (`gwfh.mranftl.com`), che è un servizio di terze parti e può essere indisponibile o cambiare. La cache può mantenere disponibile l’ultimo catalogo salvato.
-- Non è inclusa una system tray.
-- Non è ancora stato eseguito un collaudo manuale completo su più applicazioni Windows; non è disponibile un installer. La prerelease binaria non è firmata e Windows potrebbe mostrare un avviso SmartScreen.
-- Il passaggio a Tauri non è ancora stato valutato con un profilo frame-time né collaudato trascinando la finestra tra monitor con scaling DPI diverso. Fluidità e stabilità vanno verificate nell’uso reale.
+## Download and run
 
-## Avvio rapido
+1. Open the [release page](https://github.com/Dade00/open-font-manager/releases/tag/v0.1.0) and download the Windows x64 ZIP asset.
+2. Extract it into a folder you control, then launch `Open-Font-Manager.exe` (the executable name used in the v0.1.0 release archive).
+3. Allow the initial scan to finish before installing or removing fonts.
 
-### Requisiti
+Windows 11 x64 and the Microsoft Edge WebView2 Runtime are required; WebView2 is normally already present on Windows 11. The current release does not include an installer.
 
-- Windows 11 x64.
-- Rust stable aggiornato con target MSVC (`x86_64-pc-windows-msvc`) e Visual Studio Build Tools con il workload C++ e Windows SDK. Il valore `rust-version` nei manifest non è ancora verificato come MSRV dell’intero lockfile.
-- Node.js 22.12 o successivo e npm per Vite, React e la CLI Tauri.
-- WebView2 Runtime, normalmente già presente su Windows 11.
+## Usage
 
-### Compilazione ed esecuzione
+### Browse and organize local fonts
+
+1. Choose **Locali**. Windows system and user font folders are indexed automatically.
+2. Click **Aggiungi cartella** to scan another directory. Scanning existing files does not copy or install them.
+3. Search for a family or style. In the local library and Google Fonts views, **Ctrl+K** focuses the search field.
+4. Select a category, enter your own **Testo di prova**, and adjust the size slider. Select a row to see its specimen, metadata and actions on the right.
+5. Click **Aggiungi ai preferiti** to bookmark a font; use **Preferiti** to see favorites.
+6. Enter a name in **Nuova collezione** and click **+**. Select a font, then choose that collection from **Aggiungi a…** in the inspector.
+
+### Install and remove fonts
+
+Select a local font and click **Installa** to install it for your current Windows account. No administrator privileges are needed, and the font remains installed after the app closes.
+
+- **Disinstalla** removes an installation managed by Open Font Manager, without deleting the original library file.
+- **Già installato** indicates an existing external installation. Open Font Manager does not remove those installations.
+- Installation uses the per-user font directory and HKCU registration, not `C:\Windows\Fonts`. Managed installations are restored at startup and the app sends `WM_FONTCHANGE` notifications.
+
+Third-party applications decide when to refresh their font lists. If a font does not appear, try reopening the target application. Screenshots do not establish compatibility with every Windows application.
+
+### Explore online catalogs
+
+Choose **Cataloghi vari**, then **Google Fonts**, **Fontsource Extra**, **Fontshare** or **Nerd Fonts**. Use **Ricerca Globale** to search across catalogs and the local library instead.
+
+In Google Fonts, click **Carica catalogo** if empty, or **Aggiorna catalogo** to refresh. Select a family, choose a **Variante**, inspect the preview, then click **Installa** to download and install that variant for your Windows user. Other providers expose their available variant or family actions in their own view. Downloaded fonts appear under **Locali**.
+
+![Google Fonts catalog with Montserrat selected and its preview loaded](docs/assets/google-fonts.png)
+
+*Native capture with a loaded Montserrat preview. The visible cache warning is real: this is a previously saved catalog, which may be out of date.*
+
+Initial catalog fetches, uncached previews and downloads need Internet access. Saved catalog metadata can remain available during provider outages; this does not mean every preview or font file is cached.
+
+### Import a ZIP
+
+Drop a `.zip` onto the native app window. Valid `.ttf` and `.otf` files are extracted into the managed font vault and indexed under **Locali**. Check the completion notification for unreadable files or partial imports.
+
+**ZIP import alone does not install fonts in Windows.** Select an imported font and click **Installa** separately. Local `.ttc` files can be scanned, but ZIP import accepts only `.ttf` and `.otf`.
+
+### Copy snippets
+
+Select a local font and use **Copia CSS** or **Copia Next.js** in its inspector. These copy integration snippets to the clipboard; they do not add files to your web project or grant redistribution rights. Check the font's license before embedding or shipping it.
+
+### Try pairings and build moodboards
+
+1. Open **Ispirazione**, or click **Prova in Ispirazione** in a font inspector.
+2. Under **Abbinamenti**, use **Nuovo abbinamento** to choose heading and body fonts, edit sample text, and compare the live preview. Additional style and subtitle controls are expandable.
+3. Click **Salva abbinamento**, or **Aggiorna abbinamento** for an existing pairing. Leaving with unsaved changes prompts for confirmation.
+4. Switch to **Moodboard**, choose **Nuova moodboard**, enter a name and click **Crea moodboard**.
+5. Use **Aggiungi contenuto** for images, links, notes, fonts or saved compositions. A saved pairing can also be assigned using **Assegna a moodboard**.
+
+![Inspiration pairing editor with Georgia and Arial selected](docs/assets/font-pairing.png)
+
+*An unsaved pairing draft in the native app using local Georgia and Arial fonts, not a saved composition.*
+
+### Manage scan folders and storage
+
+Open **Impostazioni** to see the database/configuration path, catalog cache, font vault and Windows font directory. Add scan folders, pause them, rescan with **Scansiona**, or remove a configured root with **Rimuovi**.
+
+Pausing or removing a root changes configuration only: it does not delete files or previously indexed fonts. Catalog cache status is shown separately for each provider.
+
+## Build from source
+
+### Requirements
+
+- Windows 11 x64 and Microsoft Edge WebView2 Runtime.
+- A current stable Rust toolchain with the `x86_64-pc-windows-msvc` target.
+- Visual Studio Build Tools with the C++ workload and Windows SDK.
+- Node.js **22.12 or newer** and npm.
+
+The manifests' `rust-version` has not yet been verified as the minimum supported Rust version for the full lockfile.
 
 ```powershell
 rustup target add x86_64-pc-windows-msvc
@@ -57,26 +115,19 @@ npm ci
 npm run tauri -- dev
 ```
 
-Per creare l’eseguibile ottimizzato:
+This starts Vite at `http://127.0.0.1:1420` and opens the native app. **`npm run dev` alone starts only the frontend**: an ordinary browser does not provide the Tauri IPC, filesystem, clipboard and dialog services required by the app.
+
+Build the optimized Windows executable:
 
 ```powershell
 npm run tauri -- build --no-bundle --target x86_64-pc-windows-msvc
 ```
 
-L’eseguibile viene creato in `target\x86_64-pc-windows-msvc\release\open-font-manager-app.exe`. La configurazione attuale non genera installer o bundle.
+The executable is written to `target/x86_64-pc-windows-msvc/release/open-font-manager-app.exe`. The current configuration does not generate an installer or bundle. `npm run build` checks TypeScript and builds frontend assets only, not the desktop executable.
 
-### Utilizzo
+## Tests and checks
 
-1. Avvia l’app: i font nelle cartelle Windows e nella cartella font dell’utente corrente vengono indicizzati automaticamente. Usa **Aggiungi cartella locale** per altre directory.
-2. Cerca i font, modifica testo e dimensione dell’anteprima, filtra per categoria e gestisci preferiti o collezioni.
-3. Usa **Installa** per rendere il font disponibile alle applicazioni Windows anche dopo la chiusura di OFM; usa **Disinstalla** per rimuovere da Windows una copia installata da OFM. I font già installati esternamente sono indicati come **Installato** e non vengono rimossi da OFM.
-4. Apri **Google Fonts** per cercare il catalogo. La prima consultazione richiede una connessione; le varianti scaricate compaiono direttamente nella Libreria locale.
-5. Copia lo snippet CSS o Next.js dagli strumenti della scheda del font.
-6. Trascina un archivio `.zip` nella finestra per aggiungere i font desktop validi alla Libreria locale; l’importazione non li installa nel Registro o in `C:\Windows\Fonts`.
-
-## Test e controlli
-
-I test ordinari non richiedono accesso a Internet:
+Regular tests do not require Internet access:
 
 ```powershell
 cargo fmt --all -- --check
@@ -86,43 +137,54 @@ npm test -- --reporter=dot
 npm run build
 ```
 
-Il test live Google Fonts è marcato `#[ignore]` perché dipende dal servizio pubblico. Può essere eseguito esplicitamente con:
+The live Google Fonts test is marked `#[ignore]` because it depends on the public service. Run it explicitly with:
 
 ```powershell
 cargo test -p rust-font-manager --target x86_64-pc-windows-msvc --test google_fonts_tests -- --ignored
 ```
 
-## Struttura
+## Known limitations
 
-- `src-tauri/src/lib.rs`, `src-tauri/src/commands.rs`: runtime Tauri e comandi IPC.
-- `src-tauri/src/backend.rs`: adattatore desktop verso i servizi del core Rust.
-- `ui/src/App.tsx`, `ui/src/styles.css`: interfaccia React e tema DaisyUI.
-- `src/font_scanner.rs`: lettura dei metadati OpenType con Fontations.
-- `src/win_font_loader.rs`: notifica Windows del cambiamento dei font.
-- `src/db.rs`, `src/paths.rs`: archivio SQLite e percorsi applicativi.
-- `src/google_fonts.rs`, `src/services/google_library.rs`: client HTTP, cache e download Google Fonts.
-- `src/services/local_library.rs`: scansione della libreria locale.
-- `src/services/font_install.rs`: installazione persistente e gestione delle registrazioni Windows per utente.
-- `src/services/zip_import.rs`: estrazione sicura e validazione dei font da archivi ZIP.
-- `src/snippets.rs`: generazione di snippet.
+- Windows 11 x86_64 with the MSVC toolchain is the supported target. Other operating systems are not supported releases.
+- Local `.woff`, `.woff2`, Type 1 and bitmap fonts are not supported.
+- Catalogs and downloads depend on third-party services, which can change or become unavailable. Google Fonts access uses `google-webfonts-helper` at `gwfh.mranftl.com`.
+- There is no system tray, signed binary or installer yet.
+- Full manual compatibility testing across Windows applications, frame-time profiling and mixed-DPI multi-monitor window testing are pending. Smoothness and stability should not be assumed from screenshots.
 
+## Project layout
 
-## Privacy e dati
+| Path | Responsibility |
+| --- | --- |
+| `src-tauri/src/lib.rs`, `src-tauri/src/commands.rs` | Tauri runtime and IPC |
+| `src-tauri/src/backend.rs` | Desktop adapter to Rust services |
+| `ui/src/` | React, TypeScript, Tailwind CSS and daisyUI interface |
+| `src/font_scanner.rs` | OpenType metadata through Fontations |
+| `src/db.rs`, `src/paths.rs` | SQLite library and application paths |
+| `src/services/local_library.rs` | Local scanning |
+| `src/services/font_install.rs` | Persistent per-user Windows installation |
+| `src/win_font_loader.rs` | Windows font-change notifications |
+| `src/google_fonts.rs`, `src/services/google_library.rs` | Google Fonts requests, cache and downloads |
+| `src/services/zip_import.rs` | Safe ZIP extraction and font validation |
+| `src/snippets.rs` | Integration snippets |
 
-La libreria, i preferiti, le collezioni, le moodboard e i file scaricati rimangono sul dispositivo. Le richieste ai cataloghi e ai file contattano Google Fonts tramite `gwfh.mranftl.com`, Fontsource, Fontshare, GitHub per Nerd Fonts e i relativi host di distribuzione. I percorsi locali scansionati non sono inviati dal client. I link delle moodboard si aprono nel browser di sistema soltanto su richiesta.
+## Privacy and local data
 
-I file font scaricati sono conservati nell’archivio dati dell’app e indicizzati nella Libreria locale; la scansione dei font esistenti non li copia né li installa.
+The library, favorites, collections, moodboards and downloaded files stay on your device. Scanning existing fonts does not copy or install them, and the client does not send scanned local paths to catalog providers.
 
-## Licenza
+Catalog requests and downloads contact Google Fonts through `gwfh.mranftl.com`, Fontsource, Fontshare, GitHub for Nerd Fonts, and their distribution hosts. Moodboard links open in the system browser only when requested. Application data and cache use separate local directories; check **Impostazioni** for the actual paths.
 
-Il codice di Open Font Manager è distribuito con [licenza MIT](LICENSE): uso, modifica e ridistribuzione, anche commerciale, sono consentiti alle condizioni della licenza. Non è dovuta alcuna fee.
+## License
 
-Le dipendenze, i font e gli altri contenuti di terze parti mantengono le proprie licenze: la MIT di questo repository non li rilicenzia. Consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Open Font Manager's code is released under the [MIT license](LICENSE). Use, modification and redistribution, including commercial use, are permitted under that license. There is no usage fee.
 
-## Contribuire e segnalare problemi
+Dependencies, fonts and other third-party content retain their own licenses. This repository's MIT license does not relicense them. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Leggi [CONTRIBUTING.md](CONTRIBUTING.md) per setup, verifiche e pull request, il [codice di condotta](CODE_OF_CONDUCT.md) per la community e [SECURITY.md](SECURITY.md) per segnalazioni riservate. Le funzionalità pianificate sono in [docs/FEATURE-QUEUE.md](docs/FEATURE-QUEUE.md).
+## Contributing and reporting issues
 
-## Sostieni il progetto
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and pull requests, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations, and [SECURITY.md](SECURITY.md) for private security reports. Planned work is in [docs/FEATURE-QUEUE.md](docs/FEATURE-QUEUE.md).
 
-Se Open Font Manager ti è utile, puoi lasciare una mancia volontaria su **[PayPal](https://paypal.me/davidezmb)**. Non è necessaria per usare il software e non acquista supporto, priorità o funzionalità aggiuntive.
+For bug reports, include the app version, Windows version, reproduction steps and exact error. For font issues, include the format and provider where possible; do not upload proprietary fonts without permission.
+
+## Support the project
+
+If Open Font Manager is useful to you, you can leave an optional tip through **[PayPal](https://paypal.me/davidezmb)**. Donations are not required to use the software and do not purchase support, priority or additional features.
