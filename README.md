@@ -181,7 +181,7 @@ Dependencies, fonts and other third-party content retain their own licenses. Thi
 
 ## Contributing and reporting issues
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and pull requests, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations, and [SECURITY.md](SECURITY.md) for private security reports. Planned work is in [docs/FEATURE-QUEUE.md](docs/FEATURE-QUEUE.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and pull requests, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations, and [SECURITY.md](SECURITY.md) for private security. Planned work lives in GitHub issues labeled [`roadmap`](https://github.com/Dade00/open-font-manager/issues?q=is%3Aissue%20label%3Aroadmap%20) and in [docs/FEATURE-QUEUE.md](docs/FEATURE-QUEUE.md).
 
 For bug reports, include the app version, Windows version, reproduction steps and exact error. For font issues, include the format and provider where possible; do not upload proprietary fonts without permission.
 
